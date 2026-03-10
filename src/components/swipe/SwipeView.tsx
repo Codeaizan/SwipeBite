@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, X, RotateCcw } from 'lucide-react';
+import { Heart, X, RotateCcw, ArrowBigUpDash } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { foodItems, FoodItem } from '@/data/foodItems';
 import SwipeCard from './SwipeCard';
@@ -12,20 +12,22 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const [items, setItems] = useState<FoodItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [hintShown, setHintShown] = useState(false);
+  const [showSwipeUpHint, setShowSwipeUpHint] = useState(false);
 
   useEffect(() => {
-    // Check veg mode
     const vegMode = localStorage.getItem('vegOnlyMode') === 'true';
     const initialItems = vegMode ? foodItems.filter(i => i.isVeg) : foodItems;
-    
-    // Shuffle or sort? Let's just use original
     setItems([...initialItems]);
     
-    // Check onboarding/hints
-    setHintShown(localStorage.getItem('swipeHintShown') === 'true');
+    const hintShown = localStorage.getItem('swipeUpHintShown') === 'true';
+    if (!hintShown) {
+      setShowSwipeUpHint(true);
+      setTimeout(() => {
+        setShowSwipeUpHint(false);
+        localStorage.setItem('swipeUpHintShown', 'true');
+      }, 4000);
+    }
     
-    // Simulation of data loading
     const timer = setTimeout(() => setIsInitializing(false), 800);
     return () => clearTimeout(timer);
   }, []);
@@ -44,7 +46,6 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
         localStorage.setItem('likedItems', JSON.stringify(liked));
       }
       
-      // Check if top trending (mocked logic: item 1, 4, 7 are "hot")
       if (['1', '4', '7'].includes(item.id)) {
         confetti({
           particleCount: 150,
@@ -52,6 +53,12 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
           origin: { y: 0.6 },
           colors: ['#FF6B35', '#ffffff', '#B42D42']
         });
+      }
+    } else if (direction === 'up') {
+      const wantToTry = JSON.parse(localStorage.getItem('wantToTryItems') || '[]');
+      if (!wantToTry.find((i: FoodItem) => i.id === item.id)) {
+        wantToTry.push(item);
+        localStorage.setItem('wantToTryItems', JSON.stringify(wantToTry));
       }
     }
 
@@ -80,6 +87,21 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden px-6 pt-10 pb-24">
+      <AnimatePresence>
+        {showSwipeUpHint && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-4 left-0 right-0 z-50 flex justify-center"
+          >
+            <p className="text-[#888] text-xs font-medium bg-black/40 backdrop-blur px-4 py-2 rounded-full border border-white/10">
+              💡 Swipe up if you haven't tried it yet!
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex-1 relative">
         <AnimatePresence>
           {activeItems.length > 0 ? (
@@ -114,18 +136,26 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
       </div>
 
       {activeItems.length > 0 && (
-        <div className="flex justify-center gap-6 mt-8 mb-4">
+        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
           <button 
             onClick={() => handleSwipe('left', activeItems[0])}
-            className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 transition-colors"
+            className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 transition-colors"
           >
-            <X size={32} strokeWidth={3} />
+            <X size={28} strokeWidth={3} />
           </button>
+          
+          <button 
+            onClick={() => handleSwipe('up', activeItems[0])}
+            className="w-16 h-16 rounded-full bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center justify-center text-[#3B82F6] hover:bg-[#3B82F6]/20 transition-colors shadow-lg shadow-[#3B82F6]/5"
+          >
+            <ArrowBigUpDash size={32} fill="currentColor" />
+          </button>
+
           <button 
             onClick={() => handleSwipe('right', activeItems[0])}
-            className="w-16 h-16 rounded-full bg-[#FF6B35]/10 border border-[#FF6B35]/20 flex items-center justify-center text-[#FF6B35] hover:bg-[#FF6B35]/20 transition-colors"
+            className="w-14 h-14 rounded-full bg-[#FF6B35]/10 border border-[#FF6B35]/20 flex items-center justify-center text-[#FF6B35] hover:bg-[#FF6B35]/20 transition-colors"
           >
-            <Heart size={32} fill="currentColor" />
+            <Heart size={28} fill="currentColor" />
           </button>
         </div>
       )}

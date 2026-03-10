@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart, TrendingUp, AlertCircle, Share2, TrendingDown } from 'lucide-react';
+import { BarChart, TrendingUp, AlertCircle, Share2, TrendingDown, ArrowBigUpDash, Heart, UserMinus } from 'lucide-react';
 import { foodItems, FoodItem } from '@/data/foodItems';
 import { cn } from '@/lib/utils';
 
@@ -15,9 +15,14 @@ export default function DashboardView() {
 
   const topItems = [...foodItems]
     .sort((a, b) => (b.likes / b.totalSwipes) - (a.likes / a.totalSwipes))
-    .slice(0, 5);
+    .slice(0, 4);
 
-  const lowItems = [...foodItems]
+  const highDemandItems = [...foodItems]
+    .sort((a, b) => b.wantToTry - a.wantToTry)
+    .filter(item => item.totalSwipes < 300)
+    .slice(0, 3);
+
+  const needsImprovementItems = [...foodItems]
     .sort((a, b) => (a.likes / a.totalSwipes) - (b.likes / b.totalSwipes))
     .slice(0, 3);
 
@@ -43,12 +48,12 @@ export default function DashboardView() {
 
       <div className="grid grid-cols-2 gap-4 mb-8">
         <div className="bg-[#1a1a1a] p-5 rounded-[24px] border border-white/5">
-          <p className="text-[12px] font-bold text-[#888] uppercase mb-1">Total Swipes</p>
-          <p className="text-3xl font-black text-white">{swipeCount}</p>
+          <p className="text-[10px] font-bold text-[#888] uppercase mb-1">Total Swipes</p>
+          <p className="text-2xl font-black text-white">{swipeCount}</p>
         </div>
         <div className="bg-[#1a1a1a] p-5 rounded-[24px] border border-white/5">
-          <p className="text-[12px] font-bold text-[#888] uppercase mb-1">Avg Like Rate</p>
-          <p className="text-3xl font-black text-[#FF6B35]">64%</p>
+          <p className="text-[10px] font-bold text-[#888] uppercase mb-1">Avg Like Rate</p>
+          <p className="text-2xl font-black text-[#FF6B35]">64%</p>
         </div>
       </div>
 
@@ -56,19 +61,30 @@ export default function DashboardView() {
         <h3 className="font-bold mb-6 flex items-center gap-2">
           Top Performance <TrendingUp className="text-green-500" size={18} />
         </h3>
-        <div className="space-y-4">
-          {topItems.map((item, idx) => {
-            const rate = Math.round((item.likes / item.totalSwipes) * 100);
+        <div className="space-y-6">
+          {topItems.map((item) => {
+            const likeRate = Math.round((item.likes / item.totalSwipes) * 100);
+            const dislikeRate = 100 - likeRate;
             return (
-              <div key={item.id} className="space-y-1">
-                <div className="flex justify-between text-xs font-bold px-1">
-                  <span className="truncate max-w-[150px]">{item.name}</span>
-                  <span className="text-[#FF6B35]">{rate}%</span>
+              <div key={item.id} className="space-y-2">
+                <div className="flex justify-between items-center px-1">
+                  <span className="font-bold text-sm truncate max-w-[140px]">{item.name}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-[#FF6B35]">
+                      <Heart size={10} fill="currentColor" /> {likeRate}%
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-[#3B82F6]">
+                      <ArrowBigUpDash size={10} fill="currentColor" /> {item.wantToTry}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-[#888]">
+                      <UserMinus size={10} /> {dislikeRate}%
+                    </span>
+                  </div>
                 </div>
                 <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: `${rate}%` }}
+                    animate={{ width: `${likeRate}%` }}
                     className="h-full bg-gradient-to-r from-[#FF6B35] to-[#B42D42]"
                   />
                 </div>
@@ -78,12 +94,36 @@ export default function DashboardView() {
         </div>
       </div>
 
+      <div className="bg-[#FF6B35]/10 border border-[#FF6B35]/20 p-6 rounded-[32px] mb-8">
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-[#FF6B35]">
+          High Demand 📢 <ArrowBigUpDash size={18} className="text-[#3B82F6]" />
+        </h3>
+        <p className="text-[11px] text-[#FF6B35]/70 mb-4 italic">These items need more visibility based on 'Want to Try' intent</p>
+        <div className="space-y-3">
+          {highDemandItems.map(item => (
+            <div key={item.id} className="bg-black/20 p-4 rounded-2xl flex items-center justify-between border border-white/5">
+              <div>
+                <p className="font-bold text-sm">{item.name}</p>
+                <p className="text-[10px] text-[#888]">{item.location}</p>
+              </div>
+              <div className="flex flex-col items-end">
+                <div className="flex items-center gap-1 text-[#3B82F6] font-bold text-sm">
+                  <ArrowBigUpDash size={14} fill="currentColor" />
+                  {item.wantToTry}
+                </div>
+                <p className="text-[9px] text-[#888]">wanted</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="bg-red-500/5 border border-red-500/20 p-6 rounded-[32px]">
         <h3 className="font-bold mb-4 flex items-center gap-2 text-red-400">
           Needs Improvement <AlertCircle size={18} />
         </h3>
         <div className="space-y-3">
-          {lowItems.map(item => (
+          {needsImprovementItems.map(item => (
             <div key={item.id} className="bg-black/20 p-4 rounded-2xl flex items-center justify-between border border-white/5">
               <div>
                 <p className="font-bold text-sm">{item.name}</p>

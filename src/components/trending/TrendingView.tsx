@@ -2,15 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Flame, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingUp, Flame, ArrowUp, ArrowDown, ArrowBigUpDash, Heart } from 'lucide-react';
 import { foodItems, FoodItem } from '@/data/foodItems';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 export default function TrendingView() {
   const [filter, setFilter] = useState<'All' | 'Kiosk A' | 'Kiosk B' | 'Kiosk C'>('All');
-  const [timePeriod, setTimePeriod] = useState<'Today' | 'This Week'>('Today');
-  const [loading, setLoading] = useState(false);
+  const [rankingMode, setRankingMode] = useState<'Loved' | 'Wanted'>('Loved');
   const [displayItems, setDisplayItems] = useState<FoodItem[]>([]);
 
   useEffect(() => {
@@ -19,21 +18,19 @@ export default function TrendingView() {
       filtered = foodItems.filter(i => i.kiosk === filter);
     }
     
-    // Apply veg mode if active
     const vegMode = localStorage.getItem('vegOnlyMode') === 'true';
     if (vegMode) filtered = filtered.filter(i => i.isVeg);
 
-    // Sort by popularity (mock)
-    const sorted = [...filtered].sort((a, b) => (b.likes / b.totalSwipes) - (a.likes / a.totalSwipes));
+    const sorted = [...filtered].sort((a, b) => {
+      if (rankingMode === 'Loved') {
+        return (b.likes / b.totalSwipes) - (a.likes / a.totalSwipes);
+      } else {
+        return b.wantToTry - a.wantToTry;
+      }
+    });
+    
     setDisplayItems(sorted);
-  }, [filter]);
-
-  const handleRefresh = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-  };
+  }, [filter, rankingMode]);
 
   return (
     <div className="flex-1 flex flex-col p-6 overflow-y-auto pb-24 no-select">
@@ -43,13 +40,13 @@ export default function TrendingView() {
         </h1>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto pb-4 mb-4 no-scrollbar">
         {['All', 'Kiosk A', 'Kiosk B', 'Kiosk C'].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f as any)}
             className={cn(
-              "px-4 py-2 rounded-full text-sm font-semibold transition-all flex-shrink-0 whitespace-nowrap border",
+              "px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0 border",
               filter === f ? "bg-[#FF6B35] border-[#FF6B35] text-white" : "bg-white/5 border-white/10 text-[#888]"
             )}
           >
@@ -59,18 +56,26 @@ export default function TrendingView() {
       </div>
 
       <div className="bg-white/5 rounded-2xl p-1 flex mb-8">
-        {['Today', 'This Week'].map((t) => (
-          <button
-            key={t}
-            onClick={() => setTimePeriod(t as any)}
-            className={cn(
-              "flex-1 py-2 rounded-xl text-sm font-bold transition-all",
-              timePeriod === t ? "bg-[#1a1a1a] text-[#FF6B35] shadow-lg" : "text-[#888]"
-            )}
-          >
-            {t}
-          </button>
-        ))}
+        <button
+          onClick={() => setRankingMode('Loved')}
+          className={cn(
+            "flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2",
+            rankingMode === 'Loved' ? "bg-[#1a1a1a] text-[#FF6B35] shadow-lg" : "text-[#888]"
+          )}
+        >
+          <Heart size={14} fill={rankingMode === 'Loved' ? "currentColor" : "none"} />
+          Most Loved
+        </button>
+        <button
+          onClick={() => setRankingMode('Wanted')}
+          className={cn(
+            "flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2",
+            rankingMode === 'Wanted' ? "bg-[#1a1a1a] text-[#3B82F6] shadow-lg" : "text-[#888]"
+          )}
+        >
+          <ArrowBigUpDash size={14} fill={rankingMode === 'Wanted' ? "currentColor" : "none"} />
+          Most Wanted
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -78,7 +83,9 @@ export default function TrendingView() {
           {displayItems.length > 0 ? (
             displayItems.map((item, index) => {
               const likeRate = (item.likes / item.totalSwipes) * 100;
-              const isHot = likeRate > 70;
+              const isHot = rankingMode === 'Loved' ? likeRate > 70 : item.wantToTry > 50;
+              const barColor = rankingMode === 'Loved' ? "bg-[#FF6B35]" : "bg-[#3B82F6]";
+              const accentColor = rankingMode === 'Loved' ? "text-[#FF6B35]" : "text-[#3B82F6]";
               
               return (
                 <motion.div
@@ -90,7 +97,7 @@ export default function TrendingView() {
                   className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 flex items-center gap-4 group"
                 >
                   <div className="flex flex-col items-center justify-center min-w-[40px]">
-                    <span className="text-xl font-black italic text-[#FF6B35]">#{index + 1}</span>
+                    <span className={cn("text-xl font-black italic", accentColor)}>#{index + 1}</span>
                     <div className={cn(
                       "flex items-center text-[10px] font-bold mt-1",
                       item.rankChange > 0 ? "text-green-500" : "text-red-500"
@@ -107,21 +114,25 @@ export default function TrendingView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-white truncate">{item.name}</h3>
-                      {isHot && <Flame size={14} className="text-[#FF6B35] flex-shrink-0" />}
+                      {isHot && <Flame size={14} className={cn("flex-shrink-0", accentColor)} />}
                     </div>
                     <p className="text-[11px] text-[#888] uppercase tracking-wider mb-2">{item.location}</p>
                     
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="text-[#FF6B35]">{Math.round(likeRate)}% Like rate</span>
-                        <span className="text-[#888]">{item.totalSwipes} votes</span>
+                        <span className={accentColor}>
+                          {rankingMode === 'Loved' 
+                            ? `${Math.round(likeRate)}% Like rate` 
+                            : `⏫ ${item.wantToTry} students want to try`}
+                        </span>
+                        {rankingMode === 'Loved' && <span className="text-[#888]">{item.totalSwipes} votes</span>}
                       </div>
                       <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                         <motion.div 
                           initial={{ width: 0 }}
-                          animate={{ width: `${likeRate}%` }}
+                          animate={{ width: rankingMode === 'Loved' ? `${likeRate}%` : `${Math.min(100, (item.wantToTry/100)*100)}%` }}
                           transition={{ duration: 0.8, ease: "easeOut" }}
-                          className="h-full bg-[#FF6B35]"
+                          className={cn("h-full", barColor)}
                         />
                       </div>
                     </div>
