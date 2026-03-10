@@ -1,3 +1,94 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "chole-bhature",
+      "description": "Chole Bhature",
+      "imageUrl": "https://picsum.photos/seed/food1/600/800",
+      "imageHint": "chole bhature"
+    },
+    {
+      "id": "maggi",
+      "description": "Maggi Noodles",
+      "imageUrl": "https://picsum.photos/seed/food2/600/800",
+      "imageHint": "maggi noodles"
+    },
+    {
+      "id": "veg-burger",
+      "description": "Veg Burger",
+      "imageUrl": "https://picsum.photos/seed/food3/600/800",
+      "imageHint": "veg burger"
+    },
+    {
+      "id": "paneer-roll",
+      "description": "Paneer Roll",
+      "imageUrl": "https://picsum.photos/seed/food4/600/800",
+      "imageHint": "paneer roll"
+    },
+    {
+      "id": "chicken-sandwich",
+      "description": "Chicken Sandwich",
+      "imageUrl": "https://picsum.photos/seed/food5/600/800",
+      "imageHint": "chicken sandwich"
+    },
+    {
+      "id": "samosa",
+      "description": "Samosa",
+      "imageUrl": "https://picsum.photos/seed/food6/600/800",
+      "imageHint": "samosa"
+    },
+    {
+      "id": "cold-coffee",
+      "description": "Cold Coffee",
+      "imageUrl": "https://picsum.photos/seed/food7/600/800",
+      "imageHint": "cold coffee"
+    },
+    {
+      "id": "pasta",
+      "description": "Pasta",
+      "imageUrl": "https://picsum.photos/seed/food8/600/800",
+      "imageHint": "pasta"
+    },
+    {
+      "id": "aloo-paratha",
+      "description": "Aloo Paratha",
+      "imageUrl": "https://picsum.photos/seed/food9/600/800",
+      "imageHint": "aloo paratha"
+    },
+    {
+      "id": "chicken-roll",
+      "description": "Chicken Roll",
+      "imageUrl": "https://picsum.photos/seed/food10/600/800",
+      "imageHint": "chicken roll"
+    },
+    {
+      "id": "masala-chai",
+      "description": "Masala Chai",
+      "imageUrl": "https://picsum.photos/seed/food11/600/800",
+      "imageHint": "masala chai"
+    },
+    {
+      "id": "french-fries",
+      "description": "French Fries",
+      "imageUrl": "https://picsum.photos/seed/food12/600/800",
+      "imageHint": "french fries"
+    },
+    {
+      "id": "rajma-chawal",
+      "description": "Rajma Chawal",
+      "imageUrl": "https://picsum.photos/seed/food13/600/800",
+      "imageHint": "rajma chawal"
+    },
+    {
+      "id": "egg-bhurji",
+      "description": "Egg Bhurji",
+      "imageUrl": "https://picsum.photos/seed/food14/600/800",
+      "imageHint": "egg bhurji"
+    },
+    {
+      "id": "chocolate-shake",
+      "description": "Chocolate Shake",
+      "imageUrl": "https://picsum.photos/seed/food15/600/800",
+      "imageHint": "chocolate shake"
+    }
+  ]
 }
