@@ -1,24 +1,32 @@
+
 "use client"
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, X, RotateCcw, ArrowBigUpDash } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { foodItems, FoodItem } from '@/data/foodItems';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { collection, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import SwipeCard from './SwipeCard';
 import { Button } from '@/components/ui/button';
+import { FoodItem } from '@/data/foodItems';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: number) => void }) {
-  const [items, setItems] = useState<FoodItem[]>([]);
+  const { user } = useUser();
+  const db = useFirestore();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isInitializing, setIsInitializing] = useState(true);
   const [showSwipeUpHint, setShowSwipeUpHint] = useState(false);
 
+  const itemsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'items'), where('isAvailable', '==', true));
+  }, [db]);
+
+  const { data: items = [], loading } = useCollection<FoodItem>(itemsQuery);
+
   useEffect(() => {
-    const vegMode = localStorage.getItem('vegOnlyMode') === 'true';
-    const initialItems = vegMode ? foodItems.filter(i => i.isVeg) : foodItems;
-    setItems([...initialItems]);
-    
     const hintShown = localStorage.getItem('swipeUpHintShown') === 'true';
     if (!hintShown) {
       setShowSwipeUpHint(true);
@@ -27,49 +35,45 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
         localStorage.setItem('swipeUpHintShown', 'true');
       }, 4000);
     }
-    
-    const timer = setTimeout(() => setIsInitializing(false), 800);
-    return () => clearTimeout(timer);
   }, []);
 
   const handleSwipe = useCallback((direction: string, item: FoodItem) => {
+    if (!user || !db) return;
     if (navigator.vibrate) navigator.vibrate(50);
     
     const count = parseInt(localStorage.getItem('swipeCount') || '0') + 1;
     localStorage.setItem('swipeCount', count.toString());
     onSwipeUpdate(count);
 
+    // Persist swipe to Firestore
+    const swipeData = {
+      userId: user.uid,
+      itemId: item.id,
+      direction,
+      timestamp: serverTimestamp(),
+    };
+
+    addDoc(collection(db, 'swipes'), swipeData).catch(async (e) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'swipes',
+        operation: 'create',
+        requestResourceData: swipeData
+      }));
+    });
+
     if (direction === 'right') {
-      const liked = JSON.parse(localStorage.getItem('likedItems') || '[]');
-      if (!liked.find((i: FoodItem) => i.id === item.id)) {
-        liked.push(item);
-        localStorage.setItem('likedItems', JSON.stringify(liked));
-      }
-      
       if (['1', '4', '7'].includes(item.id)) {
         confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
+          particleCount: 150, spread: 70, origin: { y: 0.6 },
           colors: ['#FF6B35', '#ffffff', '#B42D42']
         });
-      }
-    } else if (direction === 'up') {
-      const wantToTry = JSON.parse(localStorage.getItem('wantToTryItems') || '[]');
-      if (!wantToTry.find((i: FoodItem) => i.id === item.id)) {
-        wantToTry.push(item);
-        localStorage.setItem('wantToTryItems', JSON.stringify(wantToTry));
       }
     }
 
     setCurrentIndex(prev => prev + 1);
-  }, [onSwipeUpdate]);
+  }, [user, db, onSwipeUpdate]);
 
-  const reset = () => {
-    setCurrentIndex(0);
-  };
-
-  if (isInitializing) {
+  if (loading) {
     return (
       <div className="flex-1 flex flex-col p-6 items-center justify-center">
         <div className="w-full h-[600px] bg-[#1a1a1a] rounded-[32px] animate-pulse overflow-hidden">
@@ -122,9 +126,9 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
             >
               <div className="text-7xl mb-6">🍽️</div>
               <h2 className="text-2xl font-bold mb-2">You've seen it all!</h2>
-              <p className="text-[#888] mb-8">Come back after lunch for new items</p>
+              <p className="text-[#888] mb-8">Come back later for new items</p>
               <Button 
-                onClick={reset}
+                onClick={() => setCurrentIndex(0)}
                 className="bg-[#FF6B35] hover:bg-[#FF6B35]/90 rounded-2xl px-8 py-6 text-lg font-bold gap-2"
               >
                 <RotateCcw size={20} />

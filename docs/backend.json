@@ -1,0 +1,60 @@
+
+{
+  "entities": {
+    "FoodItem": {
+      "title": "FoodItem",
+      "description": "A food item available at a kiosk",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "kiosk": { "type": "string", "enum": ["Kiosk A", "Kiosk B", "Kiosk C"] },
+        "location": { "type": "string" },
+        "price": { "type": "number" },
+        "isVeg": { "type": "boolean" },
+        "imageUrl": { "type": "string" },
+        "isAvailable": { "type": "boolean" }
+      },
+      "required": ["name", "kiosk", "location", "price", "isVeg", "imageUrl", "isAvailable"]
+    },
+    "Swipe": {
+      "title": "Swipe",
+      "description": "A user's swipe action on a food item",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "itemId": { "type": "string" },
+        "direction": { "type": "string", "enum": ["left", "right", "up"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "itemId", "direction", "timestamp"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User preferences and profile data",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "vegOnly": { "type": "boolean" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/items/{itemId}": {
+      "schema": "FoodItem",
+      "description": "Collection of available food items"
+    },
+    "/swipes/{swipeId}": {
+      "schema": "Swipe",
+      "description": "User swipe actions"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User specific profiles and settings"
+    }
+  }
+}

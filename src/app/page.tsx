@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -10,11 +11,13 @@ import TrendingView from '@/components/trending/TrendingView';
 import DashboardView from '@/components/dashboard/DashboardView';
 import ProfileView from '@/components/profile/ProfileView';
 import InstallSystem from '@/components/install/InstallSystem';
-import { foodItems } from '@/data/foodItems';
+import LoginScreen from '@/components/auth/LoginScreen';
+import { useUser } from '@/firebase';
 
 type Tab = 'home' | 'trending' | 'dashboard' | 'profile';
 
 export default function Home() {
+  const { user, loading } = useUser();
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [unseenCount, setUnseenCount] = useState(15);
@@ -35,7 +38,11 @@ export default function Home() {
     setUnseenCount(Math.max(0, 15 - totalCount));
   };
 
-  if (!isClient) return null;
+  if (!isClient || loading) return null;
+
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   return (
     <AppContainer>
