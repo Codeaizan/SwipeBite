@@ -1,9 +1,9 @@
 "use client"
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import dynamic from 'next/dynamic';
-import { Share2 } from 'lucide-react';
-import { FoodItem } from '@/data/foodItems';
+import { Share2, MapPin } from 'lucide-react';
+import { FoodItem } from '@/types/food-item';
 import { Badge } from '@/components/ui/badge';
 
 const TinderCard = dynamic(() => import('react-tinder-card'), { ssr: false });
@@ -65,7 +65,14 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
           </Badge>
           
           <div className="absolute top-6 right-6 flex flex-col gap-3 items-end">
-            <div className={`w-3 h-3 rounded-full shadow-lg ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
+            <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border ${
+              item.isVeg
+                ? 'bg-green-500/20 border-green-500/30 text-green-400'
+                : 'bg-red-500/20 border-red-500/30 text-red-400'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
+              {item.isVeg ? 'VEG' : 'NON-VEG'}
+            </div>
             <button 
               onClick={share}
               className="bg-black/40 backdrop-blur-md p-3 rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors"
@@ -77,15 +84,30 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
 
         <div className="p-8 flex flex-col justify-between h-[35%]">
           <div>
-            <h2 className="text-3xl font-bold text-white mb-1">{item.name}</h2>
-            <p className="text-[#888] text-lg font-medium">{item.location}</p>
+            <h2 className="text-3xl font-bold text-white mb-2">{item.name}</h2>
+            <div className="flex items-center gap-2 text-[#888]">
+              <MapPin size={14} className="text-[#FF6B35]" />
+              <span className="text-sm font-medium">{item.kiosk}</span>
+              <span className="text-white/20">·</span>
+              <span className="text-sm">{item.location}</span>
+            </div>
           </div>
           
-          <div className="border-t border-white/5 pt-4 flex items-center gap-2">
-            <span className="text-xl">❤️</span>
-            <span className="text-white/80 font-medium">
-              <span className="font-bold text-white">{item.likes}</span> students liked this
-            </span>
+          <div className="border-t border-white/5 pt-4 flex items-center justify-between">
+            <div className="flex gap-6">
+              <div className="text-center">
+                <p className="text-[10px] text-[#888] uppercase font-bold tracking-wider">Swipe Left</p>
+                <p className="text-xs text-[#888] mt-0.5">👎 Nope</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-[#3B82F6] uppercase font-bold tracking-wider">Swipe Up</p>
+                <p className="text-xs text-[#3B82F6] mt-0.5">⏫ Try Later</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-[#FF6B35] uppercase font-bold tracking-wider">Swipe Right</p>
+                <p className="text-xs text-[#FF6B35] mt-0.5">❤️ Love It</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -1,39 +1,44 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Heart, ArrowBigUpDash, Leaf, Info } from 'lucide-react';
-import { FoodItem } from '@/data/foodItems';
+import { Settings, Heart, ArrowBigUpDash, Leaf, LogOut } from 'lucide-react';
+import { FoodItem } from '@/types/food-item';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useUser, useFirestore, useAuth, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+
+interface UserSwipe {
+  id: string;
+  userId: string;
+  itemId: string;
+  direction: string;
+}
 
 export default function ProfileView() {
   const [vegOnly, setVegOnly] = useState(false);
-  const [likedItems, setLikedItems] = useState<FoodItem[]>([]);
-  const [wantToTryItems, setWantToTryItems] = useState<FoodItem[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'liked' | 'wantToTry'>('liked');
-  const [stats, setStats] = useState({ total: 0, liked: 0, wantToTry: 0, passed: 0 });
+  const { user } = useUser();
+  const db = useFirestore();
+  const auth = useAuth();
+
+  const swipesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, 'swipes'), where('userId', '==', user.uid));
+  }, [db, user]);
+
+  const itemsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'items'));
+  }, [db]);
+
+  const { data: swipes = [], loading: swipesLoading } = useCollection<UserSwipe>(swipesQuery);
+  const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
 
   useEffect(() => {
-    const savedVeg = localStorage.getItem('vegOnlyMode') === 'true';
-    setVegOnly(savedVeg);
-
-    const liked = JSON.parse(localStorage.getItem('likedItems') || '[]');
-    setLikedItems(liked);
-
-    const wantToTry = JSON.parse(localStorage.getItem('wantToTryItems') || '[]');
-    setWantToTryItems(wantToTry);
-
-    const total = parseInt(localStorage.getItem('swipeCount') || '0');
-    const passed = Math.max(0, total - liked.length - wantToTry.length);
-    
-    setStats({ 
-      total, 
-      liked: liked.length, 
-      wantToTry: wantToTry.length,
-      passed
-    });
+    setVegOnly(localStorage.getItem('vegOnlyMode') === 'true');
   }, []);
 
   const toggleVeg = (checked: boolean) => {
@@ -41,13 +46,63 @@ export default function ProfileView() {
     localStorage.setItem('vegOnlyMode', checked.toString());
   };
 
+  const itemsMap = useMemo(() => {
+    const map = new Map<string, FoodItem>();
+    items.forEach(item => map.set(item.id, item));
+    return map;
+  }, [items]);
+
+  const likedItems = useMemo(() => {
+    const seen = new Set<string>();
+    return swipes
+      .filter(s => s.direction === 'right' && !seen.has(s.itemId) && !!seen.add(s.itemId))
+      .map(s => itemsMap.get(s.itemId))
+      .filter(Boolean) as FoodItem[];
+  }, [swipes, itemsMap]);
+
+  const wantToTryItems = useMemo(() => {
+    const seen = new Set<string>();
+    return swipes
+      .filter(s => s.direction === 'up' && !seen.has(s.itemId) && !!seen.add(s.itemId))
+      .map(s => itemsMap.get(s.itemId))
+      .filter(Boolean) as FoodItem[];
+  }, [swipes, itemsMap]);
+
+  const stats = useMemo(() => ({
+    total: swipes.length,
+    liked: swipes.filter(s => s.direction === 'right').length,
+    wantToTry: swipes.filter(s => s.direction === 'up').length,
+    passed: swipes.filter(s => s.direction === 'left').length,
+  }), [swipes]);
+
   const currentDisplayItems = activeSubTab === 'liked' ? likedItems : wantToTryItems;
+  const loading = swipesLoading || itemsLoading;
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col p-6 pb-24 space-y-4 animate-pulse">
+        <div className="h-8 w-40 bg-white/5 rounded-xl" />
+        <div className="h-28 bg-white/5 rounded-[32px]" />
+        <div className="h-20 bg-white/5 rounded-[32px]" />
+        <div className="grid grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-36 bg-white/5 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col p-6 overflow-y-auto pb-24">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">My Profile</h1>
-        <button className="text-[#888]"><Settings size={24} /></button>
+        <button
+          onClick={() => auth && signOut(auth)}
+          className="flex items-center gap-2 text-[#888] hover:text-white transition-colors text-sm"
+        >
+          <LogOut size={18} /> Logout
+        </button>
       </div>
 
       <div className="bg-gradient-to-br from-[#FF6B35] to-[#B42D42] p-6 rounded-[32px] shadow-2xl mb-8 relative overflow-hidden">

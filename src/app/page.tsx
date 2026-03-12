@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
 import AppContainer from '@/components/layout/AppContainer';
 import BottomNav from '@/components/layout/BottomNav';
 import Onboarding from '@/components/onboarding/Onboarding';
@@ -11,13 +12,22 @@ import TrendingView from '@/components/trending/TrendingView';
 import DashboardView from '@/components/dashboard/DashboardView';
 import ProfileView from '@/components/profile/ProfileView';
 import InstallSystem from '@/components/install/InstallSystem';
+import RoleSelector from '@/components/auth/RoleSelector';
 import LoginScreen from '@/components/auth/LoginScreen';
-import { useUser } from '@/firebase';
+import OwnerLogin from '@/components/auth/OwnerLogin';
+import AdminPanel from '@/components/admin/AdminPanel';
+import SuperAdminPanel from '@/components/admin/SuperAdminPanel';
+import { useAuth } from '@/firebase';
+import { useUserRole } from '@/hooks/use-user-role';
+import { signOut } from 'firebase/auth';
 
 type Tab = 'home' | 'trending' | 'dashboard' | 'profile';
+type SelectedRole = 'none' | 'student' | 'owner';
 
 export default function Home() {
-  const { user, loading } = useUser();
+  const auth = useAuth();
+  const { roleData, loading, user } = useUserRole();
+  const [selectedRole, setSelectedRole] = useState<SelectedRole>('none');
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [unseenCount, setUnseenCount] = useState(15);
@@ -29,21 +39,75 @@ export default function Home() {
     if (!onboarded) {
       setShowOnboarding(true);
     }
-
-    const count = parseInt(localStorage.getItem('swipeCount') || '0');
-    setUnseenCount(Math.max(0, 15 - count));
   }, []);
 
   const handleSwipeUpdate = (totalCount: number) => {
     setUnseenCount(Math.max(0, 15 - totalCount));
   };
 
-  if (!isClient || loading) return null;
+  const handleBack = () => {
+    // Sign out if they were mid-auth and go back to role selector
+    if (user) {
+      auth && signOut(auth);
+    }
+    setSelectedRole('none');
+  };
 
-  if (!user) {
-    return <LoginScreen />;
+  if (!isClient || loading) {
+    return (
+      <div className="fixed inset-0 bg-[#0f0f0f] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#FF6B35]" size={32} />
+      </div>
+    );
   }
 
+  // ── Not authenticated ──
+  if (!user) {
+    if (selectedRole === 'student') {
+      return <LoginScreen onBack={() => setSelectedRole('none')} />;
+    }
+    if (selectedRole === 'owner') {
+      return <OwnerLogin onBack={() => setSelectedRole('none')} />;
+    }
+    return (
+      <RoleSelector
+        onSelectStudent={() => setSelectedRole('student')}
+        onSelectOwner={() => setSelectedRole('owner')}
+      />
+    );
+  }
+
+  // ── Authenticated but no role doc (shouldn't happen normally) ──
+  if (!roleData) {
+    return (
+      <div className="fixed inset-0 bg-[#0f0f0f] flex flex-col items-center justify-center p-8 text-center">
+        <p className="text-[#888] mb-4">Account not recognized.</p>
+        <button
+          onClick={handleBack}
+          className="text-[#FF6B35] font-bold hover:underline"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  // ── Super Admin ──
+  if (roleData.role === 'superAdmin') {
+    return <SuperAdminPanel onLogout={handleBack} />;
+  }
+
+  // ── Kiosk Owner ──
+  if (roleData.role === 'kioskOwner') {
+    return (
+      <AdminPanel
+        kiosk={roleData.kioskName || ''}
+        onLogout={handleBack}
+      />
+    );
+  }
+
+  // ── Student ──
   return (
     <AppContainer>
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}

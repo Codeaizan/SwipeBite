@@ -9,14 +9,14 @@ import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebas
 import { collection, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import SwipeCard from './SwipeCard';
 import { Button } from '@/components/ui/button';
-import { FoodItem } from '@/data/foodItems';
+import { FoodItem } from '@/types/food-item';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: number) => void }) {
   const { user } = useUser();
   const db = useFirestore();
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [localSwipedIds, setLocalSwipedIds] = useState<Set<string>>(new Set());
   const [showSwipeUpHint, setShowSwipeUpHint] = useState(false);
 
   const itemsQuery = useMemoFirebase(() => {
@@ -24,7 +24,22 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     return query(collection(db, 'items'), where('isAvailable', '==', true));
   }, [db]);
 
-  const { data: items = [], loading } = useCollection<FoodItem>(itemsQuery);
+  // Fetch user's existing swipes to filter out already-swiped items
+  const userSwipesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, 'swipes'), where('userId', '==', user.uid));
+  }, [db, user]);
+
+  const { data: allItems = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
+  const { data: userSwipes = [], loading: swipesLoading } = useCollection<any>(userSwipesQuery);
+
+  // Filter out already-swiped items (Firestore + local tracking for instant feedback)
+  const items = useMemo(() => {
+    const swipedIds = new Set(userSwipes.map(s => s.itemId));
+    return allItems.filter(item => !swipedIds.has(item.id) && !localSwipedIds.has(item.id));
+  }, [allItems, userSwipes, localSwipedIds]);
+
+  const loading = itemsLoading || swipesLoading;
 
   useEffect(() => {
     const hintShown = localStorage.getItem('swipeUpHintShown') === 'true';
@@ -40,10 +55,11 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const handleSwipe = useCallback((direction: string, item: FoodItem) => {
     if (!user || !db) return;
     if (navigator.vibrate) navigator.vibrate(50);
-    
-    const count = parseInt(localStorage.getItem('swipeCount') || '0') + 1;
-    localStorage.setItem('swipeCount', count.toString());
-    onSwipeUpdate(count);
+
+    // Immediately hide the card locally
+    setLocalSwipedIds(prev => new Set(prev).add(item.id));
+
+    onSwipeUpdate(userSwipes.length + 1);
 
     // Persist swipe to Firestore
     const swipeData = {
@@ -69,9 +85,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
         });
       }
     }
-
-    setCurrentIndex(prev => prev + 1);
-  }, [user, db, onSwipeUpdate]);
+  }, [user, db, onSwipeUpdate, userSwipes.length]);
 
   if (loading) {
     return (
@@ -87,7 +101,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     );
   }
 
-  const activeItems = items.slice(currentIndex, currentIndex + 3);
+  const activeItems = items.slice(0, 3);
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden px-6 pt-10 pb-24">
@@ -128,7 +142,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
               <h2 className="text-2xl font-bold mb-2">You've seen it all!</h2>
               <p className="text-[#888] mb-8">Come back later for new items</p>
               <Button 
-                onClick={() => setCurrentIndex(0)}
+                onClick={() => setLocalSwipedIds(new Set())}
                 className="bg-[#FF6B35] hover:bg-[#FF6B35]/90 rounded-2xl px-8 py-6 text-lg font-bold gap-2"
               >
                 <RotateCcw size={20} />
