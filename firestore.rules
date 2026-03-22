@@ -71,5 +71,17 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }
+
+    match /config/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    match /suggestions/{suggestionId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSuperAdmin() || (isKioskOwner() && ownerKioskName() in resource.data.forwardedTo) || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
   }
 }
