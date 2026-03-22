@@ -141,9 +141,15 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
             exit={{ opacity: 0 }}
             className="absolute top-4 left-0 right-0 z-50 flex justify-center"
           >
-            <p className="text-[#888] text-xs font-medium bg-black/40 backdrop-blur px-4 py-2 rounded-full border border-white/10">
-              💡 Swipe up if you haven&apos;t tried it yet!
-            </p>
+            <motion.div
+              animate={{ y: [0, -5, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="bg-gradient-to-r from-[#FF6B35]/90 to-[#B42D42]/90 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/20 shadow-[0_0_20px_rgba(255,107,53,0.3)]"
+            >
+              <p className="text-white text-xs font-bold tracking-wide shadow-sm">
+                ✨ Swipe UP to Try Later!
+              </p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -162,46 +168,57 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
             )).reverse()
           ) : (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="h-full flex flex-col items-center justify-center text-center p-8"
+              className="h-full flex items-center justify-center p-6"
             >
-              <div className="text-7xl mb-6">🍽️</div>
-              <h2 className="text-2xl font-bold mb-2">You&apos;ve seen it all!</h2>
-              <p className="text-[#888] mb-8">Come back later for new items</p>
-              <Button 
-                onClick={() => setLocalSwipedIds(new Set())}
-                className="bg-[#FF6B35] hover:bg-[#FF6B35]/90 rounded-2xl px-8 py-6 text-lg font-bold gap-2"
-              >
-                <RotateCcw size={20} />
-                Start Over
-              </Button>
+              <div className="bg-[#1a1a1a]/80 backdrop-blur-xl border border-white/10 rounded-[40px] p-10 w-full text-center shadow-2xl relative overflow-hidden">
+                {/* Background glow orb */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-[#FF6B35]/20 rounded-full blur-[50px] pointer-events-none" />
+                
+                <motion.div 
+                  className="text-7xl mb-6 relative z-10"
+                  animate={{ rotate: [0, -10, 10, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                >
+                  🚀
+                </motion.div>
+                <h2 className="text-3xl font-black mb-3 text-white tracking-tight relative z-10">You beat the app!</h2>
+                <p className="text-[#888] font-medium mb-10 text-sm relative z-10">Check back later for fresh bites 🔥</p>
+                <Button 
+                  onClick={() => setLocalSwipedIds(new Set())}
+                  className="bg-white text-black hover:bg-[#ccc] rounded-2xl w-full py-7 text-lg font-bold gap-3 transition-transform hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_30px_rgba(255,255,255,0.1)] relative z-10"
+                >
+                  <RotateCcw size={22} className="stroke-[3]" />
+                  Refresh Stack
+                </Button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
       {activeItems.length > 0 && (
-        <div className="flex justify-center items-center gap-4 mt-2 mb-0">
+        <div className="flex justify-center items-center gap-6 mt-2 mb-0">
           <button 
             onClick={() => handleSwipe('left', activeItems[0])}
-            className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 transition-colors"
+            className="w-16 h-16 rounded-full bg-[#1a1a1a]/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 transition-all hover:scale-110 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.3)] group"
           >
-            <X size={28} strokeWidth={3} />
+            <X size={32} strokeWidth={3} className="group-hover:text-white transition-colors" />
           </button>
           
           <button 
             onClick={() => handleSwipe('up', activeItems[0])}
-            className="w-16 h-16 rounded-full bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center justify-center text-[#3B82F6] hover:bg-[#3B82F6]/20 transition-colors shadow-lg shadow-[#3B82F6]/5"
+            className="w-14 h-14 rounded-full bg-[#3B82F6]/20 backdrop-blur-xl border border-[#3B82F6]/40 flex items-center justify-center text-[#3B82F6] transition-all hover:scale-110 active:scale-95 shadow-[0_0_20px_rgba(59,130,246,0.25)] hover:shadow-[0_0_30px_rgba(59,130,246,0.4)]"
           >
-            <ArrowBigUpDash size={32} fill="currentColor" />
+            <ArrowBigUpDash size={28} fill="currentColor" />
           </button>
 
           <button 
             onClick={() => handleSwipe('right', activeItems[0])}
-            className="w-14 h-14 rounded-full bg-[#FF6B35]/10 border border-[#FF6B35]/20 flex items-center justify-center text-[#FF6B35] hover:bg-[#FF6B35]/20 transition-colors"
+            className="w-16 h-16 rounded-full bg-[#FF6B35]/20 backdrop-blur-xl border border-[#FF6B35]/40 flex items-center justify-center text-[#FF6B35] transition-all hover:scale-110 active:scale-95 shadow-[0_0_20px_rgba(255,107,53,0.25)] hover:shadow-[0_0_40px_rgba(255,107,53,0.4)]"
           >
-            <Heart size={28} fill="currentColor" />
+            <Heart size={32} fill="currentColor" />
           </button>
         </div>
       )}

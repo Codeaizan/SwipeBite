@@ -208,6 +208,19 @@ function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kios
     if (!db || !name.trim() || !price) return;
     setSaving(true);
 
+    let finalImageUrl = imageUrl.trim();
+    if (finalImageUrl) {
+      try {
+        new URL(finalImageUrl);
+      } catch {
+        toast({ variant: 'destructive', title: 'Invalid Image URL', description: 'Please enter a valid web link starting with http:// or https://' });
+        setSaving(false);
+        return;
+      }
+    } else {
+      finalImageUrl = 'https://placehold.co/400x600/1a1a1a/666?text=Food';
+    }
+
     const id = `${kiosk.replace(/\s+/g, '').toLowerCase()}_${Date.now()}`;
     await setDoc(doc(db, 'items', id), {
       name: name.trim(),
@@ -215,7 +228,7 @@ function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kios
       location: kioskLocation || kiosk,
       price: parseInt(price),
       isVeg,
-      imageUrl: imageUrl.trim() || 'https://placehold.co/400x300/1a1a1a/666?text=Food',
+      imageUrl: finalImageUrl,
       isAvailable: true,
     });
 
