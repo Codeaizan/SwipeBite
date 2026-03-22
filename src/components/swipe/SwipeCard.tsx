@@ -62,7 +62,8 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
           opacity: isActive ? 1 : 0.6
         }}
       >
-        <div className="relative w-full h-[65%] overflow-hidden">
+        {/* Background Image Container */}
+        <div className="absolute inset-0 w-full h-full">
           <Image
             src={item.imageUrl}
             alt={item.name}
@@ -70,41 +71,47 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
             sizes="(max-width: 768px) 100vw, 420px"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-60" />
-          
-          <Badge className="absolute top-6 left-6 bg-[#FF6B35] border-none text-white font-bold text-lg px-3 py-1 rounded-xl">
-            ₹{item.price}
-          </Badge>
-          
-          <div className="absolute top-6 right-6 flex flex-col gap-3 items-end">
-            <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border ${
-              item.isVeg
-                ? 'bg-green-500/20 border-green-500/30 text-green-400'
-                : 'bg-red-500/20 border-red-500/30 text-red-400'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
-              {item.isVeg ? 'VEG' : 'NON-VEG'}
-            </div>
-            <button 
-              onClick={share}
-              className="bg-black/40 backdrop-blur-md p-3 rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors"
-            >
-              <Share2 size={20} />
-            </button>
-          </div>
+          {/* Gradient from bottom (dark) to top (transparent) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-[#0f0f0f]/60 to-transparent" />
         </div>
 
-        <div className="p-8 flex flex-col justify-between h-[35%]">
-          <div>
-            <h2 className="text-3xl font-bold text-white mb-2">{item.name}</h2>
-            <div className="flex items-center gap-2 text-[#888]">
-              <MapPin size={14} className="text-[#FF6B35]" />
-              <span className="text-sm font-medium">{item.kiosk}</span>
+        {/* Foreground Content (Overlays on top of the absolute image) */}
+        <div className="relative w-full h-full flex flex-col justify-between p-6">
+          
+          {/* Top Info */}
+          <div className="flex justify-between items-start">
+            <Badge className="bg-[#FF6B35] border-none text-white font-bold text-[16px] px-3 py-1.5 rounded-xl shadow-lg">
+              ₹{item.price}
+            </Badge>
+            
+            <div className="flex flex-col gap-3 items-end">
+              <div className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border backdrop-blur-sm ${
+                item.isVeg
+                  ? 'bg-green-500/30 border-green-500/40 text-green-400'
+                  : 'bg-red-500/30 border-red-500/40 text-red-400'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
+                {item.isVeg ? 'VEG' : 'NON-VEG'}
+              </div>
+              <button 
+                onClick={share}
+                className="bg-black/40 backdrop-blur-md p-3 rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors shadow-lg"
+              >
+                <Share2 size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Info */}
+          <div className="pb-2">
+            <h2 className="text-3xl font-black text-white mb-2 tracking-tight drop-shadow-md">{item.name}</h2>
+            <div className="flex items-center gap-2 text-[#ccc] drop-shadow-sm">
+              <MapPin size={16} className="text-[#FF6B35]" />
+              <span className="text-sm font-semibold">{item.kiosk}</span>
               <span className="text-white/20">·</span>
               <span className="text-sm">{item.location}</span>
             </div>
           </div>
-          
         </div>
       </div>
     </TinderCard>
