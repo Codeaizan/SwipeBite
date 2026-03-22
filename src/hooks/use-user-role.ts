@@ -3,15 +3,9 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase';
+import { UserDoc } from '@/types/firestore';
 
-export type UserRole = 'student' | 'kioskOwner' | 'superAdmin';
-
-export interface UserRoleData {
-  role: UserRole;
-  kioskId?: string;
-  kioskName?: string;
-  email?: string;
-}
+export interface UserRoleData extends Omit<UserDoc, 'id'> {}
 
 export function useUserRole() {
   const { user, loading: authLoading } = useUser();

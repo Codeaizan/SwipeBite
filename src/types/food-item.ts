@@ -7,4 +7,5 @@ export interface FoodItem {
   isVeg: boolean;
   imageUrl: string;
   isAvailable?: boolean;
+  isSpecial?: boolean;
 }

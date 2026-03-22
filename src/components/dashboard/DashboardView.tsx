@@ -5,27 +5,45 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, TrendingUp, ArrowBigUpDash, Heart } from 'lucide-react';
 import { useCollection, useFirestore } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query, limit } from 'firebase/firestore';
+import { FoodItem } from '@/types/food-item';
+import { SwipeDoc } from '@/types/firestore';
+import { QUERY_LIMITS } from '@/lib/query-limits';
 
 export default function DashboardView() {
   const db = useFirestore();
-  const { data: items = [], loading: itemsLoading } = useCollection<any>(db ? collection(db, 'items') : null);
-  const { data: swipes = [], loading: swipesLoading } = useCollection<any>(db ? collection(db, 'swipes') : null);
+  const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), limit(QUERY_LIMITS.items)) : null, [db]);
+  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.dashboardSwipes)) : null, [db]);
 
-  if (itemsLoading || swipesLoading) return null;
+  const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
+  const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
+
+  if (itemsLoading || swipesLoading) {
+    return (
+      <div className="flex-1 flex flex-col p-6 pb-24 space-y-4 animate-pulse">
+        <div className="h-8 w-48 bg-white/5 rounded-xl" />
+        <div className="grid grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 bg-white/5 rounded-[24px]" />
+          ))}
+        </div>
+        <div className="h-72 bg-white/5 rounded-[32px]" />
+      </div>
+    );
+  }
 
   // Aggregate metrics from real Firestore swipes
   const itemStats = items.map(item => {
-    const itemSwipes = swipes.filter((s: any) => s.itemId === item.id);
-    const likes = itemSwipes.filter((s: any) => s.direction === 'right').length;
-    const wants = itemSwipes.filter((s: any) => s.direction === 'up').length;
+    const itemSwipes = swipes.filter((s) => s.itemId === item.id);
+    const likes = itemSwipes.filter((s) => s.direction === 'right').length;
+    const wants = itemSwipes.filter((s) => s.direction === 'up').length;
     const total = itemSwipes.length;
     return { ...item, likes, wantToTry: wants, totalSwipes: total };
   });
 
   const topItems = [...itemStats].sort((a, b) => (b.likes / (b.totalSwipes || 1)) - (a.likes / (a.totalSwipes || 1))).slice(0, 4);
-  const totalLikes = swipes.filter((s: any) => s.direction === 'right').length;
-  const totalPasses = swipes.filter((s: any) => s.direction === 'left').length;
+  const totalLikes = swipes.filter((s) => s.direction === 'right').length;
+  const totalPasses = swipes.filter((s) => s.direction === 'left').length;
 
   return (
     <div className="flex-1 flex flex-col p-6 overflow-y-auto pb-24">

@@ -2,9 +2,11 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { Share2, MapPin } from 'lucide-react';
 import { FoodItem } from '@/types/food-item';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
 
 const TinderCard = dynamic(() => import('react-tinder-card'), { ssr: false });
 
@@ -24,11 +26,20 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
     if (navigator.share) {
       try {
         await navigator.share({ text, url });
-      } catch (err) {
-        console.error(err);
+      } catch {
+        // User cancelled share sheet; no action required.
       }
     } else {
-      navigator.clipboard.writeText(`${text} ${url}`);
+      try {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        toast({ title: 'Link copied', description: 'Share link copied to clipboard.' });
+      } catch {
+        toast({
+          variant: 'destructive',
+          title: 'Share failed',
+          description: 'Unable to copy share link on this device.',
+        });
+      }
     }
   };
 
@@ -52,11 +63,12 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
         }}
       >
         <div className="relative w-full h-[65%] overflow-hidden">
-          <img
+          <Image
             src={item.imageUrl}
             alt={item.name}
+            fill
+            sizes="(max-width: 768px) 100vw, 420px"
             className="w-full h-full object-cover"
-            loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-60" />
           

@@ -2,6 +2,7 @@
 "use client"
 
 import React from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ export default function LoginScreen({ onBack }: { onBack?: () => void }) {
           onClick={handleSignIn}
           className="w-full max-w-xs bg-white text-black hover:bg-white/90 font-bold py-7 text-lg rounded-2xl flex items-center justify-center gap-3 shadow-xl mx-auto"
         >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+          <Image src="/google-logo.svg" alt="Google" className="w-6 h-6" width={24} height={24} />
           Continue with Google
         </Button>
       </motion.div>

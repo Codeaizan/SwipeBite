@@ -30,19 +30,23 @@ export default function Home() {
   const [selectedRole, setSelectedRole] = useState<SelectedRole>('none');
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [unseenCount, setUnseenCount] = useState(15);
+  const [unseenCount, setUnseenCount] = useState(0);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    const onboarded = localStorage.getItem('swipebite_onboarded');
-    if (!onboarded) {
+    try {
+      const onboarded = localStorage.getItem('swipebite_onboarded');
+      if (!onboarded) {
+        setShowOnboarding(true);
+      }
+    } catch {
       setShowOnboarding(true);
     }
   }, []);
 
-  const handleSwipeUpdate = (totalCount: number) => {
-    setUnseenCount(Math.max(0, 15 - totalCount));
+  const handleSwipeUpdate = (totalSwiped: number) => {
+    setUnseenCount(prev => Math.max(0, prev - 1));
   };
 
   const handleBack = () => {

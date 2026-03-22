@@ -1,43 +1,41 @@
 "use client"
 
 import React, { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Eye, EyeOff, Heart, ArrowBigUpDash,
   TrendingUp, Package, BarChart, Loader2, X,
 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
+import { useFirestore, useCollection } from '@/firebase';
+import { collection, doc, setDoc, deleteDoc, updateDoc, query, limit, where } from 'firebase/firestore';
 import { FoodItem } from '@/types/food-item';
+import { KioskDoc, SwipeDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useDoc } from '@/firebase';
+import { QUERY_LIMITS } from '@/lib/query-limits';
 
-interface SwipeDoc {
-  id: string;
-  itemId: string;
-  direction: string;
-}
+type KioskItem = FoodItem & { isAvailable?: boolean };
 
 export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<'items' | 'analytics'>('items');
   const db = useFirestore();
 
   const kioskDocId = kiosk.toLowerCase().replace(/\s+/g, '-');
-  const kioskDocRef = useMemoFirebase(() => db ? doc(db, 'kiosks', kioskDocId) : null, [db, kioskDocId]);
-  const { data: kioskDoc } = useDoc<any>(kioskDocRef);
+  const kioskDocRef = useMemo(() => db ? doc(db, 'kiosks', kioskDocId) : null, [db, kioskDocId]);
+  const { data: kioskDoc } = useDoc<KioskDoc>(kioskDocRef);
   const kioskLocation = kioskDoc?.location || '';
 
-  const itemsQuery = useMemoFirebase(() => db ? collection(db, 'items') : null, [db]);
-  const swipesQuery = useMemoFirebase(() => db ? collection(db, 'swipes') : null, [db]);
+  const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), where('kiosk', '==', kiosk), limit(QUERY_LIMITS.items)) : null, [db, kiosk]);
+  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.swipes)) : null, [db]);
 
-  const { data: allItems = [], loading: itemsLoading } = useCollection<any>(itemsQuery);
-  const { data: allSwipes = [], loading: swipesLoading } = useCollection<any>(swipesQuery);
+  const { data: kioskItems = [], loading: itemsLoading } = useCollection<KioskItem>(itemsQuery);
+  const { data: allSwipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
 
-  const kioskItems = useMemo(() => allItems.filter(i => i.kiosk === kiosk), [allItems, kiosk]);
   const kioskSwipes = useMemo(() => {
     const kioskItemIds = new Set(kioskItems.map(i => i.id));
     return allSwipes.filter(s => kioskItemIds.has(s.itemId));
@@ -100,12 +98,12 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
 
 /* ─── Items Tab ────────────────────────────────────────────── */
 
-function ItemsTab({ items, kiosk, kioskLocation, db }: { items: FoodItem[]; kiosk: string; kioskLocation: string; db: any }) {
+function ItemsTab({ items, kiosk, kioskLocation, db }: { items: KioskItem[]; kiosk: string; kioskLocation: string; db: ReturnType<typeof useFirestore> }) {
   const [showForm, setShowForm] = useState(false);
 
   const toggleAvailability = async (item: FoodItem) => {
     if (!db) return;
-    await updateDoc(doc(db, 'items', item.id), { isAvailable: !(item as any).isAvailable });
+    await updateDoc(doc(db, 'items', item.id), { isAvailable: !item.isAvailable });
   };
 
   const deleteItem = async (item: FoodItem) => {
@@ -154,7 +152,13 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: FoodItem[]; kios
               className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 flex items-center gap-4"
             >
               <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
-                <img src={item.imageUrl} className="w-full h-full object-cover" alt="" />
+                <Image
+                  src={item.imageUrl}
+                  width={56}
+                  height={56}
+                  className="w-full h-full object-cover"
+                  alt={item.name}
+                />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -167,13 +171,13 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: FoodItem[]; kios
                   onClick={() => toggleAvailability(item)}
                   className={cn(
                     "w-9 h-9 rounded-xl flex items-center justify-center transition-colors",
-                    (item as any).isAvailable
+                    item.isAvailable
                       ? "bg-green-500/10 text-green-500"
                       : "bg-red-500/10 text-red-500"
                   )}
-                  title={(item as any).isAvailable ? 'Available — click to hide' : 'Hidden — click to show'}
+                  title={item.isAvailable ? 'Available - click to hide' : 'Hidden - click to show'}
                 >
-                  {(item as any).isAvailable ? <Eye size={16} /> : <EyeOff size={16} />}
+                  {item.isAvailable ? <Eye size={16} /> : <EyeOff size={16} />}
                 </button>
                 <button
                   onClick={() => deleteItem(item)}
@@ -192,7 +196,7 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: FoodItem[]; kios
 
 /* ─── Add Item Form ────────────────────────────────────────── */
 
-function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kioskLocation: string; db: any; onDone: () => void }) {
+function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kioskLocation: string; db: ReturnType<typeof useFirestore>; onDone: () => void }) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [isVeg, setIsVeg] = useState(true);
@@ -204,7 +208,7 @@ function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kios
     if (!db || !name.trim() || !price) return;
     setSaving(true);
 
-    const id = `${kiosk.replace(' ', '').toLowerCase()}_${Date.now()}`;
+    const id = `${kiosk.replace(/\s+/g, '').toLowerCase()}_${Date.now()}`;
     await setDoc(doc(db, 'items', id), {
       name: name.trim(),
       kiosk,
@@ -279,7 +283,7 @@ function AnalyticsTab({ items, swipes }: { items: FoodItem[]; swipes: SwipeDoc[]
         <StatCard label="Total Swipes" value={totalSwipes} />
         <StatCard label="Likes" value={totalLikes} color="text-[#FF6B35]" />
         <StatCard label="Want to Try" value={totalWants} color="text-[#3B82F6]" />
-        <StatCard label="Passes" value={totalPasses} color="text-[#888]" />
+        <StatCard label="Disliked" value={totalPasses} color="text-[#888]" />
       </div>
 
       {/* Per-item Breakdown */}

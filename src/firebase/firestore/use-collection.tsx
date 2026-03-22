@@ -1,33 +1,49 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Query, onSnapshot, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { Query, onSnapshot, DocumentData, queryEqual } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 
-export function useCollection<T = DocumentData>(query: Query<T> | null) {
+export function useCollection<T extends DocumentData = DocumentData>(query: Query<DocumentData> | null) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Stabilize the query reference: only update when the query actually changes
+  const queryRef = useRef(query);
+  if (
+    query !== queryRef.current &&
+    !(query && queryRef.current && queryEqual(query, queryRef.current))
+  ) {
+    queryRef.current = query;
+  }
+  const stableQuery = queryRef.current;
+
   useEffect(() => {
-    if (!query) return;
+    if (!stableQuery) {
+      setData([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
     const unsubscribe = onSnapshot(
-      query,
+      stableQuery,
       (snapshot) => {
         const items = snapshot.docs.map((doc) => ({
           ...doc.data(),
           id: doc.id,
-        })) as T[];
+        })) as unknown as T[];
         setData(items);
         setLoading(false);
       },
       async (err) => {
         const permissionError = new FirestorePermissionError({
-          path: (query as any)._query?.path?.segments?.join('/') || 'unknown',
+          path: 'unknown',
           operation: 'list',
+          code: err.code,
         });
         errorEmitter.emit('permission-error', permissionError);
         setError(err);
@@ -36,7 +52,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [query]);
+  }, [stableQuery]);
 
   return { data, loading, error };
 }

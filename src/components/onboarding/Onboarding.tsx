@@ -30,7 +30,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const handleNext = () => {
     if (current === screens.length - 1) {
-      localStorage.setItem('swipebite_onboarded', 'true');
+      try {
+        localStorage.setItem('swipebite_onboarded', 'true');
+      } catch {
+        // Ignore storage failures; onboarding still completes.
+      }
       onComplete();
     } else {
       setCurrent(current + 1);
@@ -75,7 +79,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         
         <button
           onClick={() => {
-            localStorage.setItem('swipebite_onboarded', 'true');
+            try {
+              localStorage.setItem('swipebite_onboarded', 'true');
+            } catch {
+              // Ignore storage failures; onboarding still completes.
+            }
             onComplete();
           }}
           className="text-[#888] font-medium"

@@ -1,21 +1,17 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Heart, ArrowBigUpDash, Leaf, LogOut } from 'lucide-react';
 import { FoodItem } from '@/types/food-item';
+import { SwipeDoc } from '@/types/firestore';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore, useAuth, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useUser, useFirestore, useAuth, useCollection } from '@/firebase';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-
-interface UserSwipe {
-  id: string;
-  userId: string;
-  itemId: string;
-  direction: string;
-}
+import { QUERY_LIMITS } from '@/lib/query-limits';
 
 export default function ProfileView() {
   const [vegOnly, setVegOnly] = useState(false);
@@ -24,26 +20,38 @@ export default function ProfileView() {
   const db = useFirestore();
   const auth = useAuth();
 
-  const swipesQuery = useMemoFirebase(() => {
+  const swipesQuery = useMemo(() => {
     if (!db || !user) return null;
-    return query(collection(db, 'swipes'), where('userId', '==', user.uid));
+    return query(
+      collection(db, 'swipes'),
+      where('userId', '==', user.uid),
+      limit(QUERY_LIMITS.userSwipes)
+    );
   }, [db, user]);
 
-  const itemsQuery = useMemoFirebase(() => {
+  const itemsQuery = useMemo(() => {
     if (!db) return null;
-    return query(collection(db, 'items'));
+    return query(collection(db, 'items'), limit(QUERY_LIMITS.items));
   }, [db]);
 
-  const { data: swipes = [], loading: swipesLoading } = useCollection<UserSwipe>(swipesQuery);
+  const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
   const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
 
   useEffect(() => {
-    setVegOnly(localStorage.getItem('vegOnlyMode') === 'true');
+    try {
+      setVegOnly(localStorage.getItem('vegOnlyMode') === 'true');
+    } catch {
+      setVegOnly(false);
+    }
   }, []);
 
   const toggleVeg = (checked: boolean) => {
     setVegOnly(checked);
-    localStorage.setItem('vegOnlyMode', checked.toString());
+    try {
+      localStorage.setItem('vegOnlyMode', checked.toString());
+    } catch {
+      // Ignore storage failures in privacy-restricted contexts.
+    }
   };
 
   const itemsMap = useMemo(() => {
@@ -180,7 +188,13 @@ export default function ProfileView() {
                 className="bg-[#1a1a1a] rounded-2xl overflow-hidden border border-white/5 relative"
               >
                 <div className="h-24 w-full relative">
-                  <img src={item.imageUrl} className="w-full h-full object-cover opacity-80" alt="" />
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.name}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 240px"
+                    className="w-full h-full object-cover opacity-80"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent" />
                   <div className={cn(
                     "absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center text-white",

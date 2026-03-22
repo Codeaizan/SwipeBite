@@ -4,36 +4,20 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Copy, Check, Store, Loader2, X,
-  Heart, ArrowBigUpDash, TrendingUp, Users, Mail,
+  Heart, Users,
 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection } from '@/firebase';
+import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, limit, getDocs, where, writeBatch } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
+import { KioskDoc, SwipeDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-
-function generatePassword(length = 10): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  return Array.from(array, b => chars[b % chars.length]).join('');
-}
-
-interface KioskDoc {
-  id: string;
-  name: string;
-  location: string;
-}
-
-interface SwipeDoc {
-  id: string;
-  itemId: string;
-  direction: string;
-}
+import { QUERY_LIMITS } from '@/lib/query-limits';
+import { generateStrongPassword } from '@/lib/security';
 
 interface ItemDoc {
   id: string;
@@ -44,13 +28,13 @@ interface ItemDoc {
 export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) {
   const db = useFirestore();
 
-  const kiosksQuery = useMemoFirebase(() => db ? collection(db, 'kiosks') : null, [db]);
-  const itemsQuery = useMemoFirebase(() => db ? collection(db, 'items') : null, [db]);
-  const swipesQuery = useMemoFirebase(() => db ? collection(db, 'swipes') : null, [db]);
+  const kiosksQuery = useMemo(() => db ? query(collection(db, 'kiosks'), limit(QUERY_LIMITS.kiosks)) : null, [db]);
+  const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), limit(QUERY_LIMITS.items)) : null, [db]);
+  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.swipes)) : null, [db]);
 
-  const { data: kiosks = [], loading: kiosksLoading } = useCollection<any>(kiosksQuery);
-  const { data: items = [] } = useCollection<any>(itemsQuery);
-  const { data: swipes = [] } = useCollection<any>(swipesQuery);
+  const { data: kiosks = [], loading: kiosksLoading } = useCollection<KioskDoc>(kiosksQuery);
+  const { data: items = [] } = useCollection<ItemDoc>(itemsQuery);
+  const { data: swipes = [] } = useCollection<SwipeDoc>(swipesQuery);
 
   const [showForm, setShowForm] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string } | null>(null);
@@ -71,8 +55,36 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
 
   const handleDelete = async (kiosk: KioskDoc) => {
     if (!db) return;
-    await deleteDoc(doc(db, 'kiosks', kiosk.id));
-    toast({ title: 'Kiosk removed', description: `${kiosk.name} has been deleted.` });
+
+    try {
+      const batch = writeBatch(db);
+
+      // 1. Delete the kiosk document
+      batch.delete(doc(db, 'kiosks', kiosk.id));
+
+      // 2. Delete the owner's user document
+      if (kiosk.ownerUid) {
+        batch.delete(doc(db, 'users', kiosk.ownerUid));
+      }
+
+      // 3. Find and delete all items belonging to this kiosk
+      const kioskItems = items.filter(i => i.kiosk === kiosk.name);
+      const kioskItemIds = new Set(kioskItems.map(i => i.id));
+      kioskItems.forEach(item => {
+        batch.delete(doc(db, 'items', item.id));
+      });
+
+      // 4. Find and delete all swipes on this kiosk's items
+      const kioskSwipeDocs = swipes.filter(s => kioskItemIds.has(s.itemId));
+      kioskSwipeDocs.forEach(swipe => {
+        batch.delete(doc(db, 'swipes', swipe.id));
+      });
+
+      await batch.commit();
+      toast({ title: 'Kiosk removed', description: `${kiosk.name} and all associated data deleted.` });
+    } catch {
+      toast({ variant: 'destructive', title: 'Delete failed', description: 'Could not fully remove the kiosk. Try again.' });
+    }
   };
 
   if (kiosksLoading) {
@@ -132,7 +144,7 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
                 <X size={16} />
               </button>
               <p className="text-green-400 font-bold text-sm mb-3">
-                ✅ Kiosk "{createdCredentials.name}" created! Share these credentials:
+                ✅ Kiosk &quot;{createdCredentials.name}&quot; created! Share these credentials:
               </p>
               <div className="bg-black/30 rounded-xl p-4 font-mono text-sm space-y-2">
                 <p><span className="text-[#888]">Kiosk:</span> {createdCredentials.name}</p>
@@ -146,7 +158,7 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
                 </div>
               </div>
               <p className="text-[#888] text-[10px] mt-3">
-                ⚠️ These credentials won't be shown again. Copy them now!
+                ⚠️ These credentials won&apos;t be shown again. Copy them now!
               </p>
             </motion.div>
           )}
@@ -235,7 +247,7 @@ function AddKioskForm({
   db,
   onCreated,
 }: {
-  db: any;
+  db: ReturnType<typeof useFirestore>;
   onCreated: (name: string, email: string, password: string) => void;
 }) {
   const [name, setName] = useState('');
@@ -251,7 +263,7 @@ function AddKioskForm({
     setSaving(true);
 
     try {
-      const password = generatePassword();
+      const password = generateStrongPassword();
       const kioskId = name.trim().toLowerCase().replace(/\s+/g, '-');
 
       // Create Firebase Auth account using a secondary app (doesn't sign out current user)
@@ -287,8 +299,9 @@ function AddKioskForm({
 
       toast({ title: 'Kiosk created!', description: `${name.trim()} is ready with owner account.` });
       onCreated(name.trim(), ownerEmail.trim(), password);
-    } catch (err: any) {
-      if (err?.code === 'auth/email-already-in-use') {
+    } catch (err: unknown) {
+      const code = (err as { code?: string } | null)?.code;
+      if (code === 'auth/email-already-in-use') {
         setError('This email is already registered.');
       } else {
         setError('Failed to create kiosk. Try again.');

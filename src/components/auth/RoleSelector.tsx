@@ -35,7 +35,7 @@ export default function RoleSelector({ onSelectStudent, onSelectOwner }: RoleSel
               <GraduationCap size={28} className="text-white" />
             </div>
             <div>
-              <p className="font-bold text-lg text-white">I'm a Student</p>
+              <p className="font-bold text-lg text-white">I&apos;m a Student</p>
               <p className="text-white/60 text-xs">Swipe, rate & discover food</p>
             </div>
           </motion.button>
@@ -50,7 +50,7 @@ export default function RoleSelector({ onSelectStudent, onSelectOwner }: RoleSel
               <Store size={28} className="text-[#888]" />
             </div>
             <div>
-              <p className="font-bold text-lg text-white">I'm a Kiosk Owner</p>
+              <p className="font-bold text-lg text-white">I&apos;m a Kiosk Owner</p>
               <p className="text-[#888] text-xs">Manage menu & view feedback</p>
             </div>
           </motion.button>

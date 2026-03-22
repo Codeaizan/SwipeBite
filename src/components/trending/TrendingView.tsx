@@ -1,18 +1,15 @@
 "use client"
 
 import React, { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, ArrowBigUpDash, Heart } from 'lucide-react';
 import { FoodItem } from '@/types/food-item';
+import { KioskDoc, SwipeDoc } from '@/types/firestore';
 import { cn } from '@/lib/utils';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
-
-interface SwipeDoc {
-  id: string;
-  itemId: string;
-  direction: string;
-}
+import { useFirestore, useCollection } from '@/firebase';
+import { collection, query, limit, where } from 'firebase/firestore';
+import { QUERY_LIMITS } from '@/lib/query-limits';
 
 interface RankedItem extends FoodItem {
   computedLikes: number;
@@ -24,19 +21,26 @@ interface RankedItem extends FoodItem {
 export default function TrendingView() {
   const [filter, setFilter] = useState('All');
   const [rankingMode, setRankingMode] = useState<'Loved' | 'Wanted'>('Loved');
+  const [vegOnly, setVegOnly] = useState(false);
   const db = useFirestore();
 
-  const itemsQuery = useMemoFirebase(() => db ? collection(db, 'items') : null, [db]);
-  const swipesQuery = useMemoFirebase(() => db ? collection(db, 'swipes') : null, [db]);
-  const kiosksQuery = useMemoFirebase(() => db ? collection(db, 'kiosks') : null, [db]);
+  const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null, [db]);
+  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null, [db]);
+  const kiosksQuery = useMemo(() => db ? query(collection(db, 'kiosks'), limit(QUERY_LIMITS.kiosks)) : null, [db]);
 
   const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
   const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
-  const { data: kiosks = [] } = useCollection<any>(kiosksQuery);
+  const { data: kiosks = [] } = useCollection<KioskDoc>(kiosksQuery);
 
-  const kioskNames = useMemo(() => kiosks.map(k => k.name as string), [kiosks]);
+  const kioskNames = useMemo(() => kiosks.map(k => k.name), [kiosks]);
 
-  const vegOnly = typeof window !== 'undefined' ? localStorage.getItem('vegOnlyMode') === 'true' : false;
+  React.useEffect(() => {
+    try {
+      setVegOnly(localStorage.getItem('vegOnlyMode') === 'true');
+    } catch {
+      setVegOnly(false);
+    }
+  }, []);
 
   const rankedItems = useMemo<RankedItem[]>(() => {
     let filtered = items;
@@ -150,7 +154,13 @@ export default function TrendingView() {
                   </div>
 
                   <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
-                    <img src={item.imageUrl} className="w-full h-full object-cover" alt="" />
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      width={56}
+                      height={56}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0">

@@ -5,13 +5,15 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, X, RotateCcw, ArrowBigUpDash } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useUser } from '@/firebase';
+import { collection, query, where, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import SwipeCard from './SwipeCard';
 import { Button } from '@/components/ui/button';
 import { FoodItem } from '@/types/food-item';
+import { SwipeDoc } from '@/types/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { QUERY_LIMITS } from '@/lib/query-limits';
 
 export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: number) => void }) {
   const { user } = useUser();
@@ -19,19 +21,27 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const [localSwipedIds, setLocalSwipedIds] = useState<Set<string>>(new Set());
   const [showSwipeUpHint, setShowSwipeUpHint] = useState(false);
 
-  const itemsQuery = useMemoFirebase(() => {
+  const itemsQuery = useMemo(() => {
     if (!db) return null;
-    return query(collection(db, 'items'), where('isAvailable', '==', true));
+    return query(
+      collection(db, 'items'),
+      where('isAvailable', '==', true),
+      limit(QUERY_LIMITS.items)
+    );
   }, [db]);
 
   // Fetch user's existing swipes to filter out already-swiped items
-  const userSwipesQuery = useMemoFirebase(() => {
+  const userSwipesQuery = useMemo(() => {
     if (!db || !user) return null;
-    return query(collection(db, 'swipes'), where('userId', '==', user.uid));
+    return query(
+      collection(db, 'swipes'),
+      where('userId', '==', user.uid),
+      limit(QUERY_LIMITS.userSwipes)
+    );
   }, [db, user]);
 
   const { data: allItems = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
-  const { data: userSwipes = [], loading: swipesLoading } = useCollection<any>(userSwipesQuery);
+  const { data: userSwipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(userSwipesQuery);
 
   // Filter out already-swiped items (Firestore + local tracking for instant feedback)
   const items = useMemo(() => {
@@ -42,12 +52,22 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const loading = itemsLoading || swipesLoading;
 
   useEffect(() => {
-    const hintShown = localStorage.getItem('swipeUpHintShown') === 'true';
+    let hintShown = false;
+    try {
+      hintShown = localStorage.getItem('swipeUpHintShown') === 'true';
+    } catch {
+      hintShown = false;
+    }
+
     if (!hintShown) {
       setShowSwipeUpHint(true);
       setTimeout(() => {
         setShowSwipeUpHint(false);
-        localStorage.setItem('swipeUpHintShown', 'true');
+        try {
+          localStorage.setItem('swipeUpHintShown', 'true');
+        } catch {
+          // Ignore storage failures in privacy-restricted contexts.
+        }
       }, 4000);
     }
   }, []);
@@ -59,7 +79,8 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     // Immediately hide the card locally
     setLocalSwipedIds(prev => new Set(prev).add(item.id));
 
-    onSwipeUpdate(userSwipes.length + 1);
+    const totalSwiped = userSwipes.length + localSwipedIds.size + 1;
+    onSwipeUpdate(totalSwiped);
 
     // Persist swipe to Firestore
     const swipeData = {
@@ -69,7 +90,14 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
       timestamp: serverTimestamp(),
     };
 
-    addDoc(collection(db, 'swipes'), swipeData).catch(async (e) => {
+    addDoc(collection(db, 'swipes'), swipeData).catch(async () => {
+      // Revert the optimistic update so the card reappears
+      setLocalSwipedIds(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      onSwipeUpdate(userSwipes.length + localSwipedIds.size);
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: 'swipes',
         operation: 'create',
@@ -78,14 +106,14 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     });
 
     if (direction === 'right') {
-      if (['1', '4', '7'].includes(item.id)) {
+      if (item.isSpecial) {
         confetti({
           particleCount: 150, spread: 70, origin: { y: 0.6 },
           colors: ['#FF6B35', '#ffffff', '#B42D42']
         });
       }
     }
-  }, [user, db, onSwipeUpdate, userSwipes.length]);
+  }, [user, db, onSwipeUpdate, userSwipes.length, localSwipedIds]);
 
   if (loading) {
     return (
@@ -114,7 +142,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
             className="absolute top-4 left-0 right-0 z-50 flex justify-center"
           >
             <p className="text-[#888] text-xs font-medium bg-black/40 backdrop-blur px-4 py-2 rounded-full border border-white/10">
-              💡 Swipe up if you haven't tried it yet!
+              💡 Swipe up if you haven&apos;t tried it yet!
             </p>
           </motion.div>
         )}
@@ -139,7 +167,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
               className="h-full flex flex-col items-center justify-center text-center p-8"
             >
               <div className="text-7xl mb-6">🍽️</div>
-              <h2 className="text-2xl font-bold mb-2">You've seen it all!</h2>
+              <h2 className="text-2xl font-bold mb-2">You&apos;ve seen it all!</h2>
               <p className="text-[#888] mb-8">Come back later for new items</p>
               <Button 
                 onClick={() => setLocalSwipedIds(new Set())}

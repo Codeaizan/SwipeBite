@@ -13,23 +13,31 @@ export function useInstallDetection() {
     const ua = navigator.userAgent.toLowerCase();
     const ios = /iphone|ipad|ipod/.test(ua);
     const iosSafari = ios && /safari/i.test(ua) && !/crios|fxios|opios|mercury|instagram|fban/i.test(ua);
-    
-    // @ts-ignore - navigator.standalone is iOS specific
+
     const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
     
     setIsIOS(ios);
     setIsIOSSafari(iosSafari);
     setIsStandalone(standalone);
     
-    const installed = localStorage.getItem('swipebite_installed') === 'true';
-    setIsAlreadyInstalled(installed);
-    
-    const count = parseInt(localStorage.getItem('swipeCount') || '0');
-    setSwipeCount(count);
+    try {
+      const installed = localStorage.getItem('swipebite_installed') === 'true';
+      setIsAlreadyInstalled(installed);
+
+      const count = parseInt(localStorage.getItem('swipeCount') || '0', 10);
+      setSwipeCount(Number.isNaN(count) ? 0 : count);
+    } catch {
+      setIsAlreadyInstalled(false);
+      setSwipeCount(0);
+    }
   }, []);
 
   const setInstalled = () => {
-    localStorage.setItem('swipebite_installed', 'true');
+    try {
+      localStorage.setItem('swipebite_installed', 'true');
+    } catch {
+      // Ignore storage failures in privacy-restricted contexts.
+    }
     setIsAlreadyInstalled(true);
   };
 

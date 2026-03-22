@@ -3,22 +3,26 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Check, Share, PlusSquare } from 'lucide-react';
-import { useInstallDetection } from '@/hooks/use-install-detection';
+import { useInstallDetection } from '@/hooks/useInstallDetection';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+}
 
 export default function InstallSystem() {
   const { isIOS, isIOSSafari, isStandalone, isAlreadyInstalled, swipeCount, setInstalled } = useInstallDetection();
   const [showIosSheet, setShowIosSheet] = useState(false);
   const [showAndroidBanner, setShowAndroidBanner] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (isStandalone || isAlreadyInstalled) return;
 
     if (!isIOS) {
-      const handler = (e: any) => {
+      const handler = (e: Event) => {
         e.preventDefault();
-        setDeferredPrompt(e);
+        setDeferredPrompt(e as BeforeInstallPromptEvent);
         if (swipeCount >= 5) setShowAndroidBanner(true);
       };
       window.addEventListener('beforeinstallprompt', handler);
@@ -28,10 +32,14 @@ export default function InstallSystem() {
     }
   }, [isStandalone, isAlreadyInstalled, isIOS, isIOSSafari, swipeCount]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   };
 
   if (!isStandalone && !isAlreadyInstalled && isIOS && !isIOSSafari) {
@@ -99,7 +107,7 @@ export default function InstallSystem() {
                   <div className="w-10 h-10 bg-[#FF6B35]/20 rounded-xl flex items-center justify-center text-[#FF6B35] shrink-0">
                     <PlusSquare size={20} />
                   </div>
-                  <p className="text-xs">Tap 'Add to Home Screen'</p>
+                  <p className="text-xs">Tap &apos;Add to Home Screen&apos;</p>
                 </div>
               </div>
 
@@ -107,7 +115,7 @@ export default function InstallSystem() {
                 onClick={() => { setInstalled(); setShowIosSheet(false); }}
                 className="w-full bg-[#FF6B35] text-white font-bold py-5 rounded-2xl mb-4"
               >
-                ✅ I've Added It!
+                ✅ I&apos;ve Added It!
               </button>
               <button 
                 onClick={() => setShowIosSheet(false)}

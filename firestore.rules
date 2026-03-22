@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function role() {
+      return isSignedIn() ? userDoc(request.auth.uid).data.role : null;
+    }
+
+    function isSuperAdmin() {
+      return role() == 'superAdmin';
+    }
+
+    function isKioskOwner() {
+      return role() == 'kioskOwner';
+    }
+
+    function ownerKioskName() {
+      return userDoc(request.auth.uid).data.kioskName;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function studentProfileKeys() {
+      return ['role', 'email', 'displayName', 'createdAt'];
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isSuperAdmin();
+      allow create: if isSuperAdmin() || (
+        isSelf(userId) &&
+        request.resource.data.role == 'student' &&
+        request.resource.data.keys().hasOnly(studentProfileKeys())
+      );
+      allow update: if isSuperAdmin() || (
+        isSelf(userId) &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.kioskId == resource.data.kioskId &&
+        request.resource.data.kioskName == resource.data.kioskName &&
+        request.resource.data.createdAt == resource.data.createdAt
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    match /kiosks/{kioskId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /items/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if isSuperAdmin() || (isKioskOwner() && request.resource.data.kiosk == ownerKioskName());
+      allow update: if isSuperAdmin() || (
+        isKioskOwner() &&
+        resource.data.kiosk == ownerKioskName() &&
+        request.resource.data.kiosk == resource.data.kiosk
+      );
+      allow delete: if isSuperAdmin() || (isKioskOwner() && resource.data.kiosk == ownerKioskName());
+    }
+
+    match /swipes/{swipeId} {
+      allow read: if isSuperAdmin() || isKioskOwner() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
