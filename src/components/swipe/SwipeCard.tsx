@@ -105,22 +105,6 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
             </div>
           </div>
           
-          <div className="border-t border-white/5 pt-4 flex items-center justify-between">
-            <div className="flex gap-6">
-              <div className="text-center">
-                <p className="text-[10px] text-[#888] uppercase font-bold tracking-wider">Swipe Left</p>
-                <p className="text-xs text-[#888] mt-0.5">👎 Nope</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] text-[#3B82F6] uppercase font-bold tracking-wider">Swipe Up</p>
-                <p className="text-xs text-[#3B82F6] mt-0.5">⏫ Try Later</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] text-[#FF6B35] uppercase font-bold tracking-wider">Swipe Right</p>
-                <p className="text-xs text-[#FF6B35] mt-0.5">❤️ Love It</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </TinderCard>

@@ -118,7 +118,7 @@ export default function Home() {
       
       <InstallSystem />
 
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      <main className="flex-1 flex flex-col overflow-hidden min-h-0 relative">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -126,7 +126,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="flex-1 flex flex-col"
+            className="flex-1 flex flex-col min-h-0"
           >
             {activeTab === 'home' && <SwipeView onSwipeUpdate={handleSwipeUpdate} />}
             {activeTab === 'trending' && <TrendingView />}

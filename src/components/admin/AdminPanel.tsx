@@ -44,7 +44,7 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
   const loading = itemsLoading || swipesLoading;
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white">
+    <div className="min-h-[100dvh] bg-[#0f0f0f] text-white">
       <div className="max-w-2xl mx-auto p-6 pb-24">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">

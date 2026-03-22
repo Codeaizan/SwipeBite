@@ -132,7 +132,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const activeItems = items.slice(0, 3);
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden px-6 pt-10 pb-24">
+    <div className="flex-1 flex flex-col relative overflow-hidden px-6 pt-6 pb-[68px]">
       <AnimatePresence>
         {showSwipeUpHint && (
           <motion.div
@@ -182,7 +182,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
       </div>
 
       {activeItems.length > 0 && (
-        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
+        <div className="flex justify-center items-center gap-4 mt-2 mb-0">
           <button 
             onClick={() => handleSwipe('left', activeItems[0])}
             className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 transition-colors"

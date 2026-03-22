@@ -23,7 +23,7 @@ export default function BottomNav({ activeTab, setActiveTab, unseenCount }: Bott
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-[#0f0f0f]/80 backdrop-blur-lg border-t border-white/10 z-50 flex justify-center pb-safe">
-      <div className="w-full max-w-[430px] flex justify-around items-center py-3 relative px-2">
+      <div className="w-full max-w-[430px] flex justify-around items-center py-1.5 relative px-2">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
