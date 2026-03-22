@@ -6,11 +6,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, X, RotateCcw, ArrowBigUpDash, MessageSquarePlus, Send, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCollection, useFirestore, useUser } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, limit, orderBy } from 'firebase/firestore';
 import SwipeCard from './SwipeCard';
 import { Button } from '@/components/ui/button';
 import { FoodItem } from '@/types/food-item';
-import { SwipeDoc, GlobalConfigDoc } from '@/types/firestore';
+import { SwipeDoc, GlobalConfigDoc, SuggestionDoc } from '@/types/firestore';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -29,6 +29,33 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     return db ? query(collection(db, 'config')) : null;
   }, [db]));
   const charLimit = configRows?.find(c => c.id === 'globals')?.suggestionCharLimit || 150;
+
+  // Rate Limiting Logic
+  const userSuggestionsQuery = useMemo(() => {
+    return (db && user) ? query(
+      collection(db, 'suggestions'), 
+      where('userId', '==', user.uid), 
+      orderBy('createdAt', 'desc'), 
+      limit(1)
+    ) : null;
+  }, [db, user]);
+  
+  const { data: latestSuggestions } = useCollection<SuggestionDoc>(userSuggestionsQuery);
+
+  const canSuggest = useMemo(() => {
+    if (!latestSuggestions || latestSuggestions.length === 0) return true;
+    const last = latestSuggestions[0];
+    if (!last.createdAt) return false; // Pending write
+    const lastTime = typeof (last.createdAt as any).toMillis === 'function' 
+        ? (last.createdAt as any).toMillis() 
+        : new Date(last.createdAt as any).getTime();
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+    return (Date.now() - lastTime) >= SEVEN_DAYS;
+  }, [latestSuggestions]);
+
+  const handleSuggestionClick = useCallback(() => {
+    setShowSuggestionModal(true);
+  }, []);
 
   const submitSuggestion = async () => {
     if (!user || !db || !suggestionText.trim()) return;
@@ -194,6 +221,8 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
                 isActive={idx === 0}
                 index={idx}
                 onSwipe={(dir) => handleSwipe(dir, item)}
+                onSuggest={handleSuggestionClick}
+                showSuggestButton={canSuggest}
               />
             )).reverse()
           ) : (
@@ -229,16 +258,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
       </div>
 
       {activeItems.length > 0 && (
-        <div className="flex justify-center items-center gap-6 mt-2 mb-0 relative">
-          <div className="absolute right-0 flex items-center">
-            <button 
-              onClick={() => setShowSuggestionModal(true)}
-              className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 hover:text-white transition-all hover:scale-110 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
-            >
-              <MessageSquarePlus size={22} />
-            </button>
-          </div>
-          
+        <div className="flex justify-center items-center gap-6 mt-2 mb-0">
           <button 
             onClick={() => handleSwipe('left', activeItems[0])}
             className="w-16 h-16 rounded-full bg-[#1a1a1a]/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 transition-all hover:scale-110 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.3)] group"

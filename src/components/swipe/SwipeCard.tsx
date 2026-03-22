@@ -3,7 +3,7 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { Share2, MapPin } from 'lucide-react';
+import { Share2, MapPin, MessageSquarePlus } from 'lucide-react';
 import { FoodItem } from '@/types/food-item';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -15,9 +15,11 @@ interface SwipeCardProps {
   onSwipe: (dir: string) => void;
   isActive: boolean;
   index: number;
+  onSuggest?: () => void;
+  showSuggestButton?: boolean;
 }
 
-export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardProps) {
+export default function SwipeCard({ item, onSwipe, isActive, index, onSuggest, showSuggestButton }: SwipeCardProps) {
   const share = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const text = `Try ${item.name} at ${item.kiosk} on SwipeBite! 🔥`;
@@ -104,12 +106,24 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
                 <span className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
                 {item.isVeg ? 'VEG' : 'NON-VEG'}
               </div>
-              <button 
-                onClick={share}
-                className="bg-black/40 backdrop-blur-md p-3 rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors shadow-lg"
-              >
-                <Share2 size={20} />
-              </button>
+              <div className="flex gap-2">
+                {showSuggestButton && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onSuggest?.(); }}
+                    disabled={!isActive}
+                    className="bg-black/40 backdrop-blur-md p-3 rounded-full text-[#FF6B35] border border-white/10 hover:bg-black/60 transition-colors shadow-lg disabled:opacity-50"
+                  >
+                    <MessageSquarePlus size={20} />
+                  </button>
+                )}
+                <button 
+                  onClick={share}
+                  disabled={!isActive}
+                  className="bg-black/40 backdrop-blur-md p-3 rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors shadow-lg disabled:opacity-50"
+                >
+                  <Share2 size={20} />
+                </button>
+              </div>
             </div>
           </div>
 

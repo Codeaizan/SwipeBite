@@ -422,23 +422,23 @@ function SuperSuggestionsTab({ db, kiosks }: { db: ReturnType<typeof useFirestor
   const suggestionsQuery = useMemo(() => db ? query(collection(db, 'suggestions')) : null, [db]);
   const { data: suggestions = [], loading } = useCollection<SuggestionDoc>(suggestionsQuery);
 
-  const [forwardingTo, setForwardingTo] = useState<Record<string, string>>({});
+  const [forwardingTo, setForwardingTo] = useState<Record<string, string[]>>({});
   const [processing, setProcessing] = useState<string | null>(null);
 
   const handleForward = async (suggestion: SuggestionDoc) => {
     if (!db) return;
-    const targetKioskName = forwardingTo[suggestion.id];
-    if (!targetKioskName) {
-      toast({ variant: 'destructive', title: 'Select a kiosk', description: 'Please select a kiosk to forward this suggestion to.' });
+    const targetKioskNames = forwardingTo[suggestion.id] || [];
+    if (targetKioskNames.length === 0) {
+      toast({ variant: 'destructive', title: 'Select a kiosk', description: 'Please select at least one kiosk to forward this suggestion to.' });
       return;
     }
     setProcessing(suggestion.id);
     try {
       await setDoc(doc(db, 'suggestions', suggestion.id), {
-        forwardedTo: [...(suggestion.forwardedTo || []), targetKioskName],
+        forwardedTo: Array.from(new Set([...(suggestion.forwardedTo || []), ...targetKioskNames])),
         status: 'forwarded'
       }, { merge: true });
-      toast({ title: 'Forwarded!', description: `Forwarded to ${targetKioskName}` });
+      toast({ title: 'Forwarded!', description: `Forwarded to ${targetKioskNames.length} kiosks.` });
     } catch {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to forward suggestion.' });
     } finally {
@@ -472,18 +472,33 @@ function SuperSuggestionsTab({ db, kiosks }: { db: ReturnType<typeof useFirestor
             {pending.map(s => (
               <div key={s.id} className="bg-[#1a1a1a] p-5 rounded-2xl border border-white/5 space-y-4">
                 <p className="text-white text-sm">{s.text}</p>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <select 
-                    value={forwardingTo[s.id] || ''} 
-                    onChange={e => setForwardingTo({ ...forwardingTo, [s.id]: e.target.value })}
-                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"
-                  >
-                    <option value="">-- Select Kiosk --</option>
-                    {kiosks.map(k => <option key={k.id} value={k.name}>{k.name}</option>)}
-                  </select>
-                  <div className="flex gap-2">
-                    <Button onClick={() => handleForward(s)} disabled={processing === s.id} className="flex-1 sm:flex-none bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white font-bold h-10 px-4 rounded-xl">
-                      {processing === s.id ? <Loader2 size={16} className="animate-spin" /> : 'Forward'}
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {kiosks.map(k => {
+                      const isSelected = (forwardingTo[s.id] || []).includes(k.name);
+                      return (
+                        <button
+                          key={k.id}
+                          onClick={() => {
+                            const current = forwardingTo[s.id] || [];
+                            const next = isSelected ? current.filter(name => name !== k.name) : [...current, k.name];
+                            setForwardingTo({ ...forwardingTo, [s.id]: next });
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                            isSelected 
+                              ? "bg-[#3B82F6]/20 border-[#3B82F6]/50 text-[#3B82F6]" 
+                              : "bg-black/40 border-white/10 text-[#888] hover:bg-white/5 hover:text-white"
+                          )}
+                        >
+                          {k.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button onClick={() => handleForward(s)} disabled={processing === s.id || !(forwardingTo[s.id]?.length > 0)} className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white font-bold h-10 px-4 rounded-xl">
+                      {processing === s.id ? <Loader2 size={16} className="animate-spin" /> : 'Forward to Selected'}
                     </Button>
                     <button onClick={() => handleDelete(s)} className="w-10 h-10 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500/20">
                       <Trash2 size={16} />
