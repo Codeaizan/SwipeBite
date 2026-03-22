@@ -3,14 +3,15 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, X, RotateCcw, ArrowBigUpDash } from 'lucide-react';
+import { Heart, X, RotateCcw, ArrowBigUpDash, MessageSquarePlus, Send, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCollection, useFirestore, useUser } from '@/firebase';
 import { collection, query, where, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import SwipeCard from './SwipeCard';
 import { Button } from '@/components/ui/button';
 import { FoodItem } from '@/types/food-item';
-import { SwipeDoc } from '@/types/firestore';
+import { SwipeDoc, GlobalConfigDoc } from '@/types/firestore';
+import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { QUERY_LIMITS } from '@/lib/query-limits';
@@ -20,6 +21,35 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const db = useFirestore();
   const [localSwipedIds, setLocalSwipedIds] = useState<Set<string>>(new Set());
   const [showSwipeUpHint, setShowSwipeUpHint] = useState(false);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
+  const [suggestionText, setSuggestionText] = useState('');
+  const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
+
+  const { data: configRows } = useCollection<GlobalConfigDoc>(useMemo(() => {
+    return db ? query(collection(db, 'config')) : null;
+  }, [db]));
+  const charLimit = configRows?.find(c => c.id === 'globals')?.suggestionCharLimit || 150;
+
+  const submitSuggestion = async () => {
+    if (!user || !db || !suggestionText.trim()) return;
+    setSubmittingSuggestion(true);
+    try {
+      await addDoc(collection(db, 'suggestions'), {
+        text: suggestionText.trim(),
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        status: 'pending',
+        forwardedTo: []
+      });
+      setShowSuggestionModal(false);
+      setSuggestionText('');
+      toast({ title: 'Suggestion Sent! 🚀', description: 'Thanks for your feedback!' });
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to send suggestion.' });
+    } finally {
+      setSubmittingSuggestion(false);
+    }
+  };
 
   const itemsQuery = useMemo(() => {
     if (!db) return null;
@@ -199,7 +229,16 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
       </div>
 
       {activeItems.length > 0 && (
-        <div className="flex justify-center items-center gap-6 mt-2 mb-0">
+        <div className="flex justify-center items-center gap-6 mt-2 mb-0 relative">
+          <div className="absolute right-0 flex items-center">
+            <button 
+              onClick={() => setShowSuggestionModal(true)}
+              className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 hover:text-white transition-all hover:scale-110 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
+            >
+              <MessageSquarePlus size={22} />
+            </button>
+          </div>
+          
           <button 
             onClick={() => handleSwipe('left', activeItems[0])}
             className="w-16 h-16 rounded-full bg-[#1a1a1a]/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-[#888] hover:bg-white/10 transition-all hover:scale-110 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.3)] group"
@@ -222,6 +261,70 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
           </button>
         </div>
       )}
+
+      <AnimatePresence>
+        {showSuggestionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSuggestionModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: "100%" }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: "100%" }}
+              transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#1a1a1a]/90 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden mb-safe"
+            >
+              <div className="absolute top-0 right-0 p-4">
+                <button onClick={() => setShowSuggestionModal(false)} className="text-[#888] hover:text-white transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="mb-6 mt-2">
+                <div className="w-12 h-12 rounded-full bg-[#FF6B35]/20 flex items-center justify-center text-[#FF6B35] mb-4">
+                  <MessageSquarePlus size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Campus Food Reqs 🍕</h3>
+                <p className="text-sm text-[#888]">Suggest a specific dish or cuisine you want Kiosk Owners to start cooking!</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="relative">
+                  <textarea
+                    value={suggestionText}
+                    onChange={e => setSuggestionText(e.target.value.slice(0, charLimit))}
+                    placeholder="E.g. We need more vegan options on Tuesdays!"
+                    className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-white placeholder:text-[#555] resize-none focus:outline-none focus:border-[#FF6B35]/50 transition-colors"
+                  />
+                  <div className={`absolute bottom-3 right-4 text-xs font-medium ${
+                    suggestionText.length >= charLimit ? 'text-red-400' : 'text-[#555]'
+                  }`}>
+                    {suggestionText.length}/{charLimit}
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={submitSuggestion}
+                  disabled={!suggestionText.trim() || submittingSuggestion}
+                  className="w-full bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white rounded-xl py-6 font-bold text-base gap-2"
+                >
+                  {submittingSuggestion ? <Loader2 className="animate-spin" size={18} /> : (
+                    <>
+                      <Send size={18} />
+                      Send Suggestion
+                    </>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

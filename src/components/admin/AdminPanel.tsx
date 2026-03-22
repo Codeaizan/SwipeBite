@@ -5,12 +5,12 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Eye, EyeOff, Heart, ArrowBigUpDash,
-  TrendingUp, Package, BarChart, Loader2, X,
+  TrendingUp, Package, BarChart, Loader2, X, MessageSquarePlus
 } from 'lucide-react';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, updateDoc, query, limit, where } from 'firebase/firestore';
 import { FoodItem } from '@/types/food-item';
-import { KioskDoc, SwipeDoc } from '@/types/firestore';
+import { KioskDoc, SwipeDoc, SuggestionDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -22,7 +22,7 @@ import { QUERY_LIMITS } from '@/lib/query-limits';
 type KioskItem = FoodItem & { isAvailable?: boolean };
 
 export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogout: () => void }) {
-  const [activeTab, setActiveTab] = useState<'items' | 'analytics'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'analytics' | 'suggestions'>('items');
   const db = useFirestore();
 
   const kioskDocId = kiosk.toLowerCase().replace(/\s+/g, '-');
@@ -72,6 +72,15 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
             <Package size={16} /> Menu Items
           </button>
           <button
+            onClick={() => setActiveTab('suggestions')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm",
+              activeTab === 'suggestions' ? "bg-[#2a2a2a] text-[#FF6B35]" : "text-[#888]"
+            )}
+          >
+            <MessageSquarePlus size={16} /> Suggestions
+          </button>
+          <button
             onClick={() => setActiveTab('analytics')}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm",
@@ -88,6 +97,8 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
           </div>
         ) : activeTab === 'items' ? (
           <ItemsTab items={kioskItems} kiosk={kiosk} kioskLocation={kioskLocation} db={db} />
+        ) : activeTab === 'suggestions' ? (
+          <SuggestionsTab kiosk={kiosk} db={db} />
         ) : (
           <AnalyticsTab items={kioskItems} swipes={kioskSwipes} />
         )}
@@ -338,12 +349,42 @@ function AnalyticsTab({ items, swipes }: { items: FoodItem[]; swipes: SwipeDoc[]
     </div>
   );
 }
-
 function StatCard({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
     <div className="bg-[#1a1a1a] p-5 rounded-[24px] border border-white/5">
       <p className="text-[10px] font-bold text-[#888] uppercase mb-1">{label}</p>
       <p className={cn("text-2xl font-black", color || "text-white")}>{value}</p>
+    </div>
+  );
+}
+
+/* ─── Suggestions Tab ─────────────────────────────────────── */
+
+function SuggestionsTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof useFirestore> }) {
+  const q = useMemo(() => db ? query(collection(db, 'suggestions'), where('forwardedTo', 'array-contains', kiosk)) : null, [db, kiosk]);
+  const { data: suggestions = [], loading } = useCollection<SuggestionDoc>(q);
+
+  if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-bold text-lg">{suggestions.length} Forwarded Suggestions</h2>
+      {suggestions.length === 0 ? (
+        <div className="flex flex-col items-center py-16 text-center bg-[#1a1a1a] rounded-2xl border border-dashed border-white/10">
+          <MessageSquarePlus className="text-[#888] mb-4" size={40} />
+          <h3 className="font-bold text-lg mb-2">Inbox Empty</h3>
+          <p className="text-[#888] text-sm">No campus suggestions forwarded to your kiosk yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {suggestions.map((s) => (
+            <div key={s.id} className="bg-[#1a1a1a] p-6 rounded-2xl border border-[#FF6B35]/20 relative overflow-hidden shadow-lg">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#FF6B35]/10 to-transparent pointer-events-none" />
+               <p className="text-white text-base relative z-10 leading-relaxed italic">&quot;{s.text}&quot;</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

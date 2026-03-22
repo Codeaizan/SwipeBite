@@ -4,14 +4,14 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Copy, Check, Store, Loader2, X,
-  Heart, Users,
+  Heart, Users, MessageSquarePlus, Settings as SettingsIcon
 } from 'lucide-react';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, limit, getDocs, where, writeBatch } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
-import { KioskDoc, SwipeDoc } from '@/types/firestore';
+import { KioskDoc, SwipeDoc, GlobalConfigDoc, SuggestionDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
   const { data: items = [] } = useCollection<ItemDoc>(itemsQuery);
   const { data: swipes = [] } = useCollection<SwipeDoc>(swipesQuery);
 
+  const [activeTab, setActiveTab] = useState<'kiosks' | 'suggestions' | 'settings'>('kiosks');
   const [showForm, setShowForm] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string } | null>(null);
 
@@ -112,7 +113,31 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
           </button>
         </div>
 
-        {/* Overview */}
+        {/* Tabs */}
+        <div className="flex bg-[#1a1a1a] rounded-xl p-1 mb-8 border border-white/5">
+          <button
+            onClick={() => setActiveTab('kiosks')}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2", activeTab === 'kiosks' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+          >
+            <Store size={16} /> Kiosks
+          </button>
+          <button
+            onClick={() => setActiveTab('suggestions')}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2", activeTab === 'suggestions' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+          >
+            <MessageSquarePlus size={16} /> Suggestions
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2", activeTab === 'settings' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+          >
+            <SettingsIcon size={16} /> Settings
+          </button>
+        </div>
+
+        {activeTab === 'kiosks' && (
+          <>
+            {/* Overview */}
         <div className="grid grid-cols-3 gap-3 mb-8">
           <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 text-center">
             <p className="text-[10px] font-bold text-[#888] uppercase mb-1">Kiosks</p>
@@ -239,6 +264,11 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
             ))}
           </div>
         )}
+          </>
+        )}
+
+        {activeTab === 'suggestions' && <SuperSuggestionsTab db={db} kiosks={kiosks} />}
+        {activeTab === 'settings' && <SuperSettingsTab db={db} />}
       </div>
     </div>
   );
@@ -383,5 +413,150 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </button>
+  );
+}
+
+/* ─── Tabs ────────────────────────────────────────────── */
+
+function SuperSuggestionsTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[] }) {
+  const suggestionsQuery = useMemo(() => db ? query(collection(db, 'suggestions')) : null, [db]);
+  const { data: suggestions = [], loading } = useCollection<SuggestionDoc>(suggestionsQuery);
+
+  const [forwardingTo, setForwardingTo] = useState<Record<string, string>>({});
+  const [processing, setProcessing] = useState<string | null>(null);
+
+  const handleForward = async (suggestion: SuggestionDoc) => {
+    if (!db) return;
+    const targetKioskName = forwardingTo[suggestion.id];
+    if (!targetKioskName) {
+      toast({ variant: 'destructive', title: 'Select a kiosk', description: 'Please select a kiosk to forward this suggestion to.' });
+      return;
+    }
+    setProcessing(suggestion.id);
+    try {
+      await setDoc(doc(db, 'suggestions', suggestion.id), {
+        forwardedTo: [...(suggestion.forwardedTo || []), targetKioskName],
+        status: 'forwarded'
+      }, { merge: true });
+      toast({ title: 'Forwarded!', description: `Forwarded to ${targetKioskName}` });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to forward suggestion.' });
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleDelete = async (suggestion: SuggestionDoc) => {
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, 'suggestions', suggestion.id));
+      toast({ title: 'Deleted', description: 'Suggestion removed.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete.' });
+    }
+  };
+
+  if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
+
+  const pending = suggestions.filter(s => s.status === 'pending');
+  const forwarded = suggestions.filter(s => s.status === 'forwarded');
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-bold text-lg mb-4 text-[#FF6B35]">Pending Review ({pending.length})</h2>
+        {pending.length === 0 ? (
+           <p className="text-[#888] text-sm italic">No pending suggestions.</p>
+        ) : (
+          <div className="space-y-3">
+            {pending.map(s => (
+              <div key={s.id} className="bg-[#1a1a1a] p-5 rounded-2xl border border-white/5 space-y-4">
+                <p className="text-white text-sm">{s.text}</p>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <select 
+                    value={forwardingTo[s.id] || ''} 
+                    onChange={e => setForwardingTo({ ...forwardingTo, [s.id]: e.target.value })}
+                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"
+                  >
+                    <option value="">-- Select Kiosk --</option>
+                    {kiosks.map(k => <option key={k.id} value={k.name}>{k.name}</option>)}
+                  </select>
+                  <div className="flex gap-2">
+                    <Button onClick={() => handleForward(s)} disabled={processing === s.id} className="flex-1 sm:flex-none bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white font-bold h-10 px-4 rounded-xl">
+                      {processing === s.id ? <Loader2 size={16} className="animate-spin" /> : 'Forward'}
+                    </Button>
+                    <button onClick={() => handleDelete(s)} className="w-10 h-10 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500/20">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="font-bold text-lg mb-4 text-[#888]">Forwarded ({forwarded.length})</h2>
+        <div className="space-y-3 opacity-60">
+           {forwarded.map(s => (
+             <div key={s.id} className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 flex justify-between items-center gap-4">
+                <p className="text-white text-sm line-clamp-2 flex-1">{s.text}</p>
+                <div className="text-[10px] text-[#FF6B35] font-bold px-2 py-1 bg-[#FF6B35]/10 rounded-lg whitespace-nowrap text-right max-w-[40%] truncate">
+                  {s.forwardedTo?.slice(-1)[0]} {s.forwardedTo?.length > 1 && `+${s.forwardedTo.length - 1}`}
+                </div>
+             </div>
+           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuperSettingsTab({ db }: { db: ReturnType<typeof useFirestore> }) {
+  const [charLimit, setCharLimit] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  
+  const configQuery = useMemo(() => db ? query(collection(db, 'config'), limit(1)) : null, [db]);
+  const { data: configs } = useCollection<GlobalConfigDoc>(configQuery);
+  const globalConfig = configs?.find(c => c.id === 'globals');
+
+  React.useEffect(() => {
+    if (globalConfig?.suggestionCharLimit) {
+      setCharLimit(globalConfig.suggestionCharLimit.toString());
+    }
+  }, [globalConfig]);
+
+  const handleSave = async () => {
+    if (!db) return;
+    setLoading(true);
+    try {
+      await setDoc(doc(db, 'config', 'globals'), { suggestionCharLimit: parseInt(charLimit) }, { merge: true });
+      toast({ title: 'Saved', description: 'Global settings updated successfully.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update settings.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/5 space-y-6">
+      <h2 className="font-bold text-lg mb-4">Global Features</h2>
+      <div>
+        <label className="text-xs font-bold text-[#888] uppercase tracking-wider mb-2 block">Student Suggestion Character Limit</label>
+        <Input 
+          type="number" 
+          value={charLimit} 
+          onChange={e => setCharLimit(e.target.value)} 
+          placeholder="150"
+          className="bg-[#0f0f0f] border-white/10 rounded-xl h-11 text-white mb-3" 
+        />
+        <p className="text-xs text-[#555]">This limits how long a student&apos;s request can be.</p>
+      </div>
+      <Button onClick={handleSave} disabled={loading || !charLimit} className="w-full bg-[#FF6B35] hover:bg-[#FF6B35]/90 font-bold rounded-xl py-5">
+        {loading ? <Loader2 size={18} className="animate-spin" /> : 'Save Settings'}
+      </Button>
+    </div>
   );
 }

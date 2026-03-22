@@ -28,3 +28,17 @@ export interface UserDoc {
   displayName?: string;
   createdAt?: unknown;
 }
+
+export interface SuggestionDoc {
+  id: string;
+  text: string;
+  userId: string;
+  createdAt?: unknown;
+  status: 'pending' | 'forwarded' | 'rejected';
+  forwardedTo: string[]; // array of kiosk names (acting as IDs)
+}
+
+export interface GlobalConfigDoc {
+  id?: string;
+  suggestionCharLimit: number;
+}
