@@ -55,7 +55,7 @@ export default function SwipeCard({ item, onSwipe, isActive, index }: SwipeCardP
       swipeThreshold={80}
     >
       <div 
-        className="relative w-full h-[600px] bg-[#1a1a1a] rounded-[32px] overflow-hidden shadow-2xl border border-white/5 transition-transform duration-300 group"
+        className="relative w-full h-full bg-[#1a1a1a] rounded-[32px] overflow-hidden shadow-2xl border border-white/5 transition-transform duration-300 group"
         style={{
           transform: `scale(${isActive ? 1 : scale}) translateY(${isActive ? 0 : translateY}px)`,
           zIndex: 100 - index,

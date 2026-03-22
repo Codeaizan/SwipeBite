@@ -118,7 +118,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   if (loading) {
     return (
       <div className="flex-1 flex flex-col p-6 items-center justify-center">
-        <div className="w-full h-[600px] bg-[#1a1a1a] rounded-[32px] animate-pulse overflow-hidden">
+        <div className="w-full h-full bg-[#1a1a1a] rounded-[32px] animate-pulse overflow-hidden">
           <div className="h-[65%] bg-white/5" />
           <div className="p-8 space-y-4">
             <div className="h-8 w-2/3 bg-white/5 rounded-lg" />
