@@ -1,208 +1,400 @@
 "use client"
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, ArrowBigUpDash, Heart } from 'lucide-react';
-import { FoodItem } from '@/types/food-item';
-import { KioskDoc, SwipeDoc } from '@/types/firestore';
+import { Flame, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, limit, where } from 'firebase/firestore';
-import { QUERY_LIMITS } from '@/lib/query-limits';
+import { Button } from '@/components/ui/button';
+import {
+  useTrends,
+  TimePeriod,
+  CuisineCategory,
+  PriceFilter,
+  CUISINE_CATEGORIES,
+  PRICE_FILTERS,
+  RankedTrendItem,
+  CampusMood,
+} from '@/hooks/use-trends';
 
-interface RankedItem extends FoodItem {
-  computedLikes: number;
-  computedWantToTry: number;
-  computedTotal: number;
-  likeRate: number;
+// ────────────────────────────────────────────
+// Sub-components
+// ────────────────────────────────────────────
+
+function TimePeriodTabs({
+  value,
+  onChange,
+}: {
+  value: TimePeriod;
+  onChange: (v: TimePeriod) => void;
+}) {
+  const tabs: { key: TimePeriod; label: string }[] = [
+    { key: 'daily', label: 'Daily' },
+    { key: 'weekly', label: 'Weekly' },
+    { key: 'monthly', label: 'Monthly' },
+  ];
+
+  return (
+    <div className="bg-white/5 rounded-2xl p-1 flex mb-4">
+      {tabs.map(t => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          className={cn(
+            'flex-1 py-3 rounded-xl text-xs font-bold transition-all',
+            value === t.key
+              ? 'bg-[#1a1a1a] text-[#FF6B35] shadow-lg'
+              : 'text-[#888]',
+          )}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
-export default function TrendingView() {
-  const [filter, setFilter] = useState('All');
-  const [rankingMode, setRankingMode] = useState<'Loved' | 'Wanted'>('Loved');
-  const [vegOnly, setVegOnly] = useState(false);
-  const db = useFirestore();
+function FilterPills<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+      {options.map(opt => (
+        <button
+          key={opt}
+          onClick={() => onChange(opt)}
+          className={cn(
+            'px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0 border whitespace-nowrap',
+            value === opt
+              ? 'bg-[#FF6B35] border-[#FF6B35] text-white'
+              : 'bg-[#2a2a2a] border-transparent text-white',
+          )}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-  const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null, [db]);
-  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null, [db]);
-  const kiosksQuery = useMemo(() => db ? query(collection(db, 'kiosks'), limit(QUERY_LIMITS.kiosks)) : null, [db]);
+function CampusMoodCard({
+  mood,
+  timePeriod,
+}: {
+  mood: CampusMood;
+  timePeriod: 'weekly' | 'monthly';
+}) {
+  const periodWord = timePeriod === 'weekly' ? 'week' : 'month';
 
-  const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
-  const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
-  const { data: kiosks = [] } = useCollection<KioskDoc>(kiosksQuery);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="bg-[#1a1a1a] rounded-2xl p-4 mb-6 border-l-4 border-[#FF6B35] flex items-center gap-4"
+    >
+      <span className="text-4xl flex-shrink-0">{mood.emoji}</span>
+      <div>
+        <p className="font-bold text-sm text-white">
+          This {periodWord} LPU is craving {mood.cuisine}
+        </p>
+        <p className="text-[#888] text-xs mt-1">
+          {mood.swipeCount} swipes in this category
+        </p>
+      </div>
+    </motion.div>
+  );
+}
 
-  const kioskNames = useMemo(() => kiosks.map(k => k.name), [kiosks]);
+function RankMovement({ movement }: { movement: number | null }) {
+  if (movement === null) return null;
 
-  React.useEffect(() => {
-    try {
-      setVegOnly(localStorage.getItem('vegOnlyMode') === 'true');
-    } catch {
-      setVegOnly(false);
-    }
-  }, []);
-
-  const rankedItems = useMemo<RankedItem[]>(() => {
-    let filtered = items;
-    if (filter !== 'All') filtered = items.filter(i => i.kiosk === filter);
-    if (vegOnly) filtered = filtered.filter(i => i.isVeg);
-
-    const computed = filtered.map(item => {
-      const itemSwipes = swipes.filter(s => s.itemId === item.id);
-      const computedLikes = itemSwipes.filter(s => s.direction === 'right').length;
-      const computedWantToTry = itemSwipes.filter(s => s.direction === 'up').length;
-      const computedTotal = itemSwipes.length;
-      const likeRate = computedTotal > 0 ? (computedLikes / computedTotal) * 100 : 0;
-      return { ...item, computedLikes, computedWantToTry, computedTotal, likeRate };
-    });
-
-    return computed.sort((a, b) =>
-      rankingMode === 'Loved'
-        ? b.likeRate - a.likeRate
-        : b.computedWantToTry - a.computedWantToTry
+  // Rising Fast: moved up 4+
+  if (movement >= 4) {
+    return (
+      <span className="bg-[#FF6B35] text-white text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+        🔥 Rising Fast
+      </span>
     );
-  }, [items, swipes, filter, rankingMode, vegOnly]);
+  }
 
-  const maxWanted = useMemo(
-    () => Math.max(1, ...rankedItems.map(i => i.computedWantToTry)),
-    [rankedItems]
+  if (movement > 0) {
+    return (
+      <span className="text-[#22c55e] text-[11px] font-bold whitespace-nowrap">
+        ▲{movement}
+      </span>
+    );
+  }
+
+  if (movement < 0) {
+    return (
+      <span className="text-[#ef4444] text-[11px] font-bold whitespace-nowrap">
+        ▼{Math.abs(movement)}
+      </span>
+    );
+  }
+
+  return <span className="text-[#888] text-[11px] font-bold">—</span>;
+}
+
+function RankingItem({
+  item,
+  rank,
+  index,
+}: {
+  item: RankedTrendItem;
+  rank: number;
+  index: number;
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.3 }}
+      className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 flex items-center gap-3"
+    >
+      {/* Rank */}
+      <span className="text-lg font-black text-white min-w-[24px] text-center">
+        {rank}
+      </span>
+
+      {/* Thumbnail */}
+      <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
+        <Image
+          src={item.imageUrl}
+          alt={item.name}
+          width={48}
+          height={48}
+          className="w-full h-full object-cover"
+        />
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <h3 className="font-bold text-sm text-white truncate">{item.name}</h3>
+          <RankMovement movement={item.rankMovement} />
+        </div>
+
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-[10px] text-[#888]">{item.kiosk}</span>
+          <span className="bg-[#2a2a2a] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+            {item.cuisine}
+          </span>
+          <span className="text-[#FF6B35] text-[10px] font-bold">₹{item.price}</span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.round(item.likeRate)}%` }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              className="h-full bg-[#FF6B35]"
+            />
+          </div>
+          <span className="text-[10px] font-bold text-[#FF6B35] flex-shrink-0">
+            {Math.round(item.likeRate)}%
+          </span>
+          <span className="text-[10px] text-[#888] flex-shrink-0">
+            {item.totalSwipes} swipes
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ────────────────────────────────────────────
+// Empty states
+// ────────────────────────────────────────────
+
+function EmptyFiltered() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <span className="text-5xl mb-4">🍽️</span>
+      <h3 className="text-xl font-bold mb-2">Nothing here yet</h3>
+      <p className="text-[#888] text-sm">No swipes recorded for this combination yet</p>
+    </div>
+  );
+}
+
+function EmptyNoData() {
+  const handleShare = async () => {
+    const text = 'Check out SwipeBite — discover trending food on campus! 🔥';
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text, url });
+      } catch {
+        // User cancelled
+      }
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center px-8">
+      <span className="text-5xl mb-4">📊</span>
+      <h3 className="text-xl font-bold mb-2">No trends yet</h3>
+      <p className="text-[#888] text-sm mb-8">
+        Share SwipeBite with friends to start seeing trends
+      </p>
+      <Button
+        onClick={handleShare}
+        className="bg-[#FF6B35] hover:bg-[#FF6B35]/90 rounded-2xl px-8 py-6 text-base font-bold gap-2"
+      >
+        <Share2 size={18} />
+        Share SwipeBite
+      </Button>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
+// Section header per period
+// ────────────────────────────────────────────
+
+function sectionHeader(period: TimePeriod): string {
+  switch (period) {
+    case 'daily': return "Today's Top Picks 🍽️";
+    case 'weekly': return "This Week's Rankings 📈";
+    case 'monthly': return "This Month's Rankings 🗓️";
+  }
+}
+
+// ────────────────────────────────────────────
+// Loading skeleton
+// ────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="flex-1 flex flex-col p-6 pb-24 space-y-4">
+      <div className="h-12 bg-white/5 rounded-2xl animate-pulse" />
+      <div className="flex gap-2">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-8 w-24 bg-white/5 rounded-full animate-pulse flex-shrink-0" />
+        ))}
+      </div>
+      <div className="flex gap-2">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-8 w-20 bg-white/5 rounded-full animate-pulse flex-shrink-0" />
+        ))}
+      </div>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="h-24 bg-white/5 rounded-2xl animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
+// Main Trends Screen
+// ────────────────────────────────────────────
+
+export default function TrendingView() {
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('daily');
+  const [cuisineFilter, setCuisineFilter] = useState<CuisineCategory>('All');
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>('All');
+
+  const { rankedItems, campusMood, loading, hasAnyData } = useTrends(
+    timePeriod,
+    cuisineFilter,
+    priceFilter,
   );
 
-  if (itemsLoading || swipesLoading) {
+  const priceLabels = PRICE_FILTERS.map(p => p.label);
+
+  const handlePriceChange = useCallback((v: string) => {
+    setPriceFilter(v as PriceFilter);
+  }, []);
+
+  const handleCuisineChange = useCallback((v: string) => {
+    setCuisineFilter(v as CuisineCategory);
+  }, []);
+
+  if (loading) return <LoadingSkeleton />;
+
+  // No data at all
+  if (!hasAnyData) {
     return (
-      <div className="flex-1 flex flex-col p-6 pb-24 space-y-4">
-        <div className="h-8 w-40 bg-white/5 rounded-xl animate-pulse" />
-        <div className="flex gap-2">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-8 w-20 bg-white/5 rounded-full animate-pulse" />)}
+      <div className="flex-1 flex flex-col p-6 overflow-y-auto pb-24 no-select">
+        <div className="flex items-center gap-2 mb-6">
+          <h1 className="text-2xl font-bold">Trends</h1>
+          <Flame className="text-[#FF6B35]" />
         </div>
-        <div className="h-12 bg-white/5 rounded-2xl animate-pulse" />
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-20 bg-white/5 rounded-2xl animate-pulse" />
-        ))}
+        <EmptyNoData />
       </div>
     );
   }
 
   return (
     <div className="flex-1 flex flex-col p-6 overflow-y-auto pb-24 no-select">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          Trending Now <Flame className="text-[#FF6B35]" />
-        </h1>
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-6">
+        <h1 className="text-2xl font-bold">Trends</h1>
+        <Flame className="text-[#FF6B35]" />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-4 no-scrollbar">
-        {['All', ...kioskNames].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              "px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0 border",
-              filter === f ? "bg-[#FF6B35] border-[#FF6B35] text-white" : "bg-white/5 border-white/10 text-[#888]"
-            )}
-          >
-            {f}
-          </button>
-        ))}
+      {/* Layer 1: Time Period */}
+      <TimePeriodTabs value={timePeriod} onChange={setTimePeriod} />
+
+      {/* Layer 2: Cuisine Filter */}
+      <FilterPills
+        options={CUISINE_CATEGORIES}
+        value={cuisineFilter}
+        onChange={handleCuisineChange}
+      />
+
+      {/* Layer 3: Price Filter */}
+      <div className="mt-2 mb-6">
+        <FilterPills
+          options={priceLabels}
+          value={priceFilter}
+          onChange={handlePriceChange}
+        />
       </div>
 
-      <div className="bg-white/5 rounded-2xl p-1 flex mb-8">
-        <button
-          onClick={() => setRankingMode('Loved')}
-          className={cn(
-            "flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2",
-            rankingMode === 'Loved' ? "bg-[#1a1a1a] text-[#FF6B35] shadow-lg" : "text-[#888]"
-          )}
-        >
-          <Heart size={14} fill={rankingMode === 'Loved' ? "currentColor" : "none"} />
-          Most Loved
-        </button>
-        <button
-          onClick={() => setRankingMode('Wanted')}
-          className={cn(
-            "flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2",
-            rankingMode === 'Wanted' ? "bg-[#1a1a1a] text-[#3B82F6] shadow-lg" : "text-[#888]"
-          )}
-        >
-          <ArrowBigUpDash size={14} fill={rankingMode === 'Wanted' ? "currentColor" : "none"} />
-          Most Wanted
-        </button>
-      </div>
+      {/* Campus Mood Card (weekly/monthly only) */}
+      <AnimatePresence mode="wait">
+        {campusMood && timePeriod !== 'daily' && (
+          <CampusMoodCard
+            key={timePeriod}
+            mood={campusMood}
+            timePeriod={timePeriod as 'weekly' | 'monthly'}
+          />
+        )}
+      </AnimatePresence>
 
-      <div className="space-y-4">
+      {/* Section Header */}
+      <h2 className="text-base font-bold mb-4 text-white">
+        {sectionHeader(timePeriod)}
+      </h2>
+
+      {/* Rankings List */}
+      <div className="space-y-3">
         <AnimatePresence mode="popLayout">
           {rankedItems.length > 0 ? (
-            rankedItems.map((item, index) => {
-              const isHot = rankingMode === 'Loved' ? item.likeRate > 70 : item.computedWantToTry > 50;
-              const barColor = rankingMode === 'Loved' ? "bg-[#FF6B35]" : "bg-[#3B82F6]";
-              const accentColor = rankingMode === 'Loved' ? "text-[#FF6B35]" : "text-[#3B82F6]";
-              const barWidth = rankingMode === 'Loved'
-                ? `${Math.round(item.likeRate)}%`
-                : `${Math.round((item.computedWantToTry / maxWanted) * 100)}%`;
-
-              return (
-                <motion.div
-                  key={item.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 flex items-center gap-4"
-                >
-                  <div className="flex flex-col items-center justify-center min-w-[32px]">
-                    <span className={cn("text-xl font-black italic", accentColor)}>#{index + 1}</span>
-                  </div>
-
-                  <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
-                    <Image
-                      src={item.imageUrl}
-                      alt={item.name}
-                      width={56}
-                      height={56}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-white truncate">{item.name}</h3>
-                      {isHot && <Flame size={14} className={cn("flex-shrink-0", accentColor)} />}
-                    </div>
-                    <p className="text-[11px] text-[#888] uppercase tracking-wider mb-2">{item.location}</p>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className={accentColor}>
-                          {rankingMode === 'Loved'
-                            ? `${Math.round(item.likeRate)}% Like rate`
-                            : `⏫ ${item.computedWantToTry} students want to try`}
-                        </span>
-                        {rankingMode === 'Loved' && (
-                          <span className="text-[#888]">{item.computedTotal} votes</span>
-                        )}
-                      </div>
-                      <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: barWidth }}
-                          transition={{ duration: 0.8, ease: "easeOut" }}
-                          className={cn("h-full", barColor)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })
+            rankedItems.map((item, index) => (
+              <RankingItem
+                key={item.id}
+                item={item}
+                rank={index + 1}
+                index={index}
+              />
+            ))
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <span className="text-5xl mb-4">👀</span>
-              <h3 className="text-xl font-bold mb-2">Not enough swipes yet</h3>
-              <p className="text-[#888]">Be the first to vote!</p>
-            </div>
+            <EmptyFiltered />
           )}
         </AnimatePresence>
       </div>
     </div>
   );
 }
-

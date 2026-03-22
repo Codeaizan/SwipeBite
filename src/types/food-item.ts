@@ -8,4 +8,5 @@ export interface FoodItem {
   imageUrl: string;
   isAvailable?: boolean;
   isSpecial?: boolean;
+  cuisine?: string;
 }
