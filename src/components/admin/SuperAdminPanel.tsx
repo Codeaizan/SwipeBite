@@ -213,6 +213,9 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
                   <div>
                     <h3 className="font-bold">{kiosk.name}</h3>
                     <p className="text-[11px] text-[#888]">{kiosk.location}</p>
+                    {kiosk.ownerEmail && (
+                      <p className="text-[11px] text-[#FF6B35] mt-0.5">{kiosk.ownerEmail}</p>
+                    )}
                   </div>
                   <button
                     onClick={() => handleDelete(kiosk)}
