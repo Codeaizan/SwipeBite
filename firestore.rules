@@ -86,7 +86,13 @@ service cloud.firestore {
 
     match /polls/{pollId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isSuperAdmin();
+      allow create, delete: if isSuperAdmin();
+      allow update: if isSuperAdmin()
+        || (isSignedIn()
+            && request.resource.data.question == resource.data.question
+            && request.resource.data.options == resource.data.options
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.distributedTo == resource.data.distributedTo);
     }
 
     match /pollVotes/{voteId} {

@@ -422,10 +422,15 @@ function SuggestionsTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof us
 
 function KioskPollsTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof useFirestore> }) {
   const pollsQuery = useMemo(
-    () => db ? query(collection(db, 'polls'), where('distributedTo', 'array-contains', kiosk), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.polls)) : null,
+    () => db ? query(collection(db, 'polls'), where('distributedTo', 'array-contains', kiosk), limit(QUERY_LIMITS.polls)) : null,
     [db, kiosk]
   );
-  const { data: polls = [], loading } = useCollection<PollDoc>(pollsQuery);
+  const { data: rawPolls = [], loading } = useCollection<PollDoc>(pollsQuery);
+  const polls = useMemo(() => [...rawPolls].sort((a, b) => {
+    const aTime = a.createdAt ? (a.createdAt as any)?.seconds || 0 : 0;
+    const bTime = b.createdAt ? (b.createdAt as any)?.seconds || 0 : 0;
+    return bTime - aTime;
+  }), [rawPolls]);
 
   if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
 
