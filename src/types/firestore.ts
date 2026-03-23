@@ -15,6 +15,9 @@ export interface KioskDoc {
   ownerUid?: string;
   ownerEmail?: string;
   createdAt?: unknown;
+  isSubscribed?: boolean;
+  subscriptionStartDate?: unknown;
+  subscriptionEndDate?: unknown;
 }
 
 export type UserRole = 'student' | 'kioskOwner' | 'superAdmin';

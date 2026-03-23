@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Copy, Check, Store, Loader2, X,
   Heart, Users, MessageSquarePlus, Settings as SettingsIcon,
-  BarChart3, Send, StopCircle, ChevronDown, ChevronUp
+  BarChart3, Send, StopCircle, ChevronDown, ChevronUp, Crown
 } from 'lucide-react';
+import { Timestamp } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, limit, getDocs, where, writeBatch, orderBy } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -41,6 +42,15 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
   const [showForm, setShowForm] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string } | null>(null);
 
+  const isSubscriptionActive = (k: KioskDoc) => {
+    if (!k.isSubscribed) return false;
+    if (k.subscriptionEndDate) {
+      const end = k.subscriptionEndDate as Timestamp;
+      if (typeof end?.toMillis === 'function' && end.toMillis() < Date.now()) return false;
+    }
+    return true;
+  };
+
   const kioskStats = useMemo(() => {
     return kiosks.map(k => {
       const kioskItems = items.filter(i => i.kiosk === k.name);
@@ -51,9 +61,38 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
         itemCount: kioskItems.length,
         swipeCount: kioskSwipes.length,
         likeCount: kioskSwipes.filter(s => s.direction === 'right').length,
+        subscriptionActive: isSubscriptionActive(k),
       };
     });
   }, [kiosks, items, swipes]);
+
+  const subscribedKioskNames = useMemo(
+    () => kioskStats.filter(k => k.subscriptionActive).map(k => k.name),
+    [kioskStats]
+  );
+
+  const handleToggleSubscription = async (kiosk: KioskDoc) => {
+    if (!db) return;
+    const wasActive = isSubscriptionActive(kiosk);
+    try {
+      if (wasActive) {
+        await updateDoc(doc(db, 'kiosks', kiosk.id), {
+          isSubscribed: false,
+          subscriptionEndDate: serverTimestamp(),
+        });
+        toast({ title: 'Unsubscribed', description: `${kiosk.name} will no longer auto-receive data.` });
+      } else {
+        await updateDoc(doc(db, 'kiosks', kiosk.id), {
+          isSubscribed: true,
+          subscriptionStartDate: serverTimestamp(),
+          subscriptionEndDate: null,
+        });
+        toast({ title: '👑 Subscribed!', description: `${kiosk.name} will now auto-receive all polls & suggestions.` });
+      }
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update subscription.' });
+    }
+  };
 
   const handleDelete = async (kiosk: KioskDoc) => {
     if (!db) return;
@@ -145,10 +184,14 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
         {activeTab === 'kiosks' && (
           <>
             {/* Overview */}
-        <div className="grid grid-cols-3 gap-3 mb-8">
+        <div className="grid grid-cols-4 gap-3 mb-8">
           <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 text-center">
             <p className="text-[10px] font-bold text-[#888] uppercase mb-1">Kiosks</p>
             <p className="text-2xl font-black text-purple-400">{kiosks.length}</p>
+          </div>
+          <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 text-center">
+            <p className="text-[10px] font-bold text-[#888] uppercase mb-1">Subscribed</p>
+            <p className="text-2xl font-black text-yellow-400">{subscribedKioskNames.length}</p>
           </div>
           <div className="bg-[#1a1a1a] p-4 rounded-2xl border border-white/5 text-center">
             <p className="text-[10px] font-bold text-[#888] uppercase mb-1">Items</p>
@@ -239,22 +282,42 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
               <motion.div
                 key={kiosk.id}
                 layout
-                className="bg-[#1a1a1a] p-5 rounded-2xl border border-white/5"
+                className={cn("bg-[#1a1a1a] p-5 rounded-2xl border", kiosk.subscriptionActive ? "border-yellow-500/30" : "border-white/5")}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="font-bold">{kiosk.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold">{kiosk.name}</h3>
+                      {kiosk.subscriptionActive && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 flex items-center gap-1">
+                          <Crown size={10} /> SUBSCRIBED
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-[#888]">{kiosk.location}</p>
                     {kiosk.ownerEmail && (
                       <p className="text-[11px] text-[#FF6B35] mt-0.5">{kiosk.ownerEmail}</p>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleDelete(kiosk)}
-                    className="w-9 h-9 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleSubscription(kiosk)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border",
+                        kiosk.subscriptionActive
+                          ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
+                          : "bg-white/5 border-white/10 text-[#888] hover:bg-yellow-500/10 hover:border-yellow-500/30 hover:text-yellow-400"
+                      )}
+                    >
+                      {kiosk.subscriptionActive ? 'Unsubscribe' : 'Subscribe'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(kiosk)}
+                      className="w-9 h-9 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex gap-4 text-[11px]">
                   <span className="flex items-center gap-1 text-[#888]">
@@ -274,8 +337,8 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
           </>
         )}
 
-        {activeTab === 'polls' && <SuperPollsTab db={db} kiosks={kiosks} />}
-        {activeTab === 'suggestions' && <SuperSuggestionsTab db={db} kiosks={kiosks} />}
+        {activeTab === 'polls' && <SuperPollsTab db={db} kiosks={kiosks} subscribedKioskNames={subscribedKioskNames} />}
+        {activeTab === 'suggestions' && <SuperSuggestionsTab db={db} kiosks={kiosks} subscribedKioskNames={subscribedKioskNames} />}
         {activeTab === 'settings' && <SuperSettingsTab db={db} />}
       </div>
     </div>
@@ -426,12 +489,26 @@ function CopyButton({ text }: { text: string }) {
 
 /* ─── Tabs ────────────────────────────────────────────── */
 
-function SuperSuggestionsTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[] }) {
+function SuperSuggestionsTab({ db, kiosks, subscribedKioskNames }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[], subscribedKioskNames: string[] }) {
   const suggestionsQuery = useMemo(() => db ? query(collection(db, 'suggestions')) : null, [db]);
   const { data: suggestions = [], loading } = useCollection<SuggestionDoc>(suggestionsQuery);
 
   const [forwardingTo, setForwardingTo] = useState<Record<string, string[]>>({});
   const [processing, setProcessing] = useState<string | null>(null);
+
+  // Auto-pre-select subscribed kiosks for new pending suggestions
+  React.useEffect(() => {
+    const pending = suggestions.filter(s => s.status === 'pending');
+    const updates: Record<string, string[]> = {};
+    for (const s of pending) {
+      if (!forwardingTo[s.id] && subscribedKioskNames.length > 0) {
+        updates[s.id] = [...subscribedKioskNames];
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      setForwardingTo(prev => ({ ...prev, ...updates }));
+    }
+  }, [suggestions, subscribedKioskNames]);
 
   const handleForward = async (suggestion: SuggestionDoc) => {
     if (!db) return;
@@ -586,7 +663,7 @@ function SuperSettingsTab({ db }: { db: ReturnType<typeof useFirestore> }) {
 
 /* ─── Polls Tab ──────────────────────────────────────────── */
 
-function SuperPollsTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[] }) {
+function SuperPollsTab({ db, kiosks, subscribedKioskNames }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[], subscribedKioskNames: string[] }) {
   const pollsQuery = useMemo(() => db ? query(collection(db, 'polls'), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.polls)) : null, [db]);
   const { data: polls = [], loading } = useCollection<PollDoc>(pollsQuery);
 
@@ -619,16 +696,20 @@ function SuperPollsTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, ki
     setCreating(true);
     try {
       const pollId = `poll_${Date.now()}`;
+      const autoDistribute = subscribedKioskNames.length > 0 ? subscribedKioskNames : [];
       await setDoc(doc(db, 'polls', pollId), {
         question: trimmedQ,
         options: trimmedOpts,
         status: 'active',
         totalVotes: 0,
         optionVotes: trimmedOpts.map(() => 0),
-        distributedTo: [],
+        distributedTo: autoDistribute,
         createdAt: serverTimestamp(),
       });
-      toast({ title: '🗳️ Poll created!', description: 'Students can now vote on the home page.' });
+      const msg = autoDistribute.length > 0
+        ? `Students can now vote. Auto-sent to ${autoDistribute.length} subscribed kiosk(s).`
+        : 'Students can now vote on the home page.';
+      toast({ title: '🗳️ Poll created!', description: msg });
       setQuestion('');
       setOptions(['', '']);
       setShowCreateForm(false);
