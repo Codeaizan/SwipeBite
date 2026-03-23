@@ -100,5 +100,19 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow update, delete: if false;
     }
+
+    match /feedback/{feedbackId} {
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.reason.size() >= 5;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.reason.size() >= 5;
+      allow read: if isSuperAdmin()
+        || (isKioskOwner() && resource.data.kioskName == ownerKioskName())
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if false;
+    }
   }
 }

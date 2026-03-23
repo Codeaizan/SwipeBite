@@ -5,12 +5,12 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Eye, EyeOff, Heart, ArrowBigUpDash,
-  TrendingUp, Package, BarChart, Loader2, X, MessageSquarePlus, BarChart3
+  TrendingUp, Package, BarChart, Loader2, X, MessageSquarePlus, BarChart3, MessageSquare
 } from 'lucide-react';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, updateDoc, query, limit, where, orderBy } from 'firebase/firestore';
 import { FoodItem } from '@/types/food-item';
-import { KioskDoc, SwipeDoc, SuggestionDoc, PollDoc } from '@/types/firestore';
+import { KioskDoc, SwipeDoc, SuggestionDoc, PollDoc, FeedbackDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -23,7 +23,7 @@ import { CUISINE_CATEGORIES } from '@/hooks/use-trends';
 type KioskItem = FoodItem & { isAvailable?: boolean };
 
 export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogout: () => void }) {
-  const [activeTab, setActiveTab] = useState<'items' | 'analytics' | 'suggestions' | 'polls'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'analytics' | 'suggestions' | 'polls' | 'feedback'>('items');
   const db = useFirestore();
 
   const kioskDocId = kiosk.toLowerCase().replace(/\s+/g, '-');
@@ -91,6 +91,15 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
             <MessageSquarePlus size={14} /> Tips
           </button>
           <button
+            onClick={() => setActiveTab('feedback')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm whitespace-nowrap",
+              activeTab === 'feedback' ? "bg-[#2a2a2a] text-[#FF6B35]" : "text-[#888]"
+            )}
+          >
+            <MessageSquare size={14} /> Feedback
+          </button>
+          <button
             onClick={() => setActiveTab('analytics')}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm whitespace-nowrap",
@@ -111,6 +120,8 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
           <SuggestionsTab kiosk={kiosk} db={db} />
         ) : activeTab === 'polls' ? (
           <KioskPollsTab kiosk={kiosk} db={db} />
+        ) : activeTab === 'feedback' ? (
+          <FeedbackTab kiosk={kiosk} db={db} />
         ) : (
           <AnalyticsTab items={kioskItems} swipes={kioskSwipes} />
         )}
@@ -487,6 +498,93 @@ function KioskPollsTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof use
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ─── Feedback Tab ───────────────────────────────────────── */
+
+function FeedbackTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof useFirestore> }) {
+  const [selectedType, setSelectedType] = useState<'All' | 'liked' | 'disliked'>('All');
+
+  const feedbackQuery = useMemo(() => {
+    return db ? query(
+      collection(db, 'feedback'),
+      where('kioskName', '==', kiosk),
+      orderBy('createdAt', 'desc'),
+      limit(QUERY_LIMITS.feedback)
+    ) : null;
+  }, [db, kiosk]);
+
+  const { data: allFeedback = [], loading } = useCollection<FeedbackDoc>(feedbackQuery);
+
+  const filtered = useMemo(() => {
+    if (selectedType === 'All') return allFeedback;
+    return allFeedback.filter(fb => fb.type === selectedType);
+  }, [allFeedback, selectedType]);
+
+  const totalLikes = allFeedback.filter(f => f.type === 'liked').length;
+  const totalDislikes = allFeedback.filter(f => f.type === 'disliked').length;
+
+  if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="font-bold text-lg">Customer Feedback ({filtered.length})</h2>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 text-center shadow-lg">
+          <p className="text-xs text-[#888] font-bold uppercase mb-1">Total Likes</p>
+          <p className="text-2xl font-black text-[#FF6B35]">{totalLikes}</p>
+        </div>
+        <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 text-center shadow-lg">
+          <p className="text-xs text-[#888] font-bold uppercase mb-1">Total Dislikes</p>
+          <p className="text-2xl font-black text-red-500">{totalDislikes}</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-[#888] mb-1.5 block font-bold">Filter by Type</label>
+        <select 
+          value={selectedType}
+          onChange={(e) => setSelectedType(e.target.value as any)}
+          className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl h-11 px-3 text-sm focus:outline-none"
+        >
+          <option value="All">All Types</option>
+          <option value="liked">👍 Liked Only</option>
+          <option value="disliked">👎 Disliked Only</option>
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-10 bg-[#1a1a1a] rounded-2xl border border-white/5 text-[#888]">
+          <MessageSquare size={32} className="mx-auto mb-3 opacity-50" />
+          <p>No feedback found yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(fb => (
+            <div key={fb.id} className="bg-[#1a1a1a] p-5 rounded-2xl border border-white/5 shadow-md">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h3 className="font-bold text-sm tracking-tight">{fb.itemName}</h3>
+                </div>
+                <div className={cn(
+                  "px-2 py-1 rounded-lg text-xs font-bold whitespace-nowrap",
+                  fb.type === 'liked' ? "bg-[#FF6B35]/20 text-[#FF6B35]" : "bg-red-500/20 text-red-500"
+                )}>
+                  {fb.type === 'liked' ? '👍 Liked' : '👎 Disliked'}
+                </div>
+              </div>
+              <p className="text-sm text-white/90 italic leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
+                &quot;{fb.reason}&quot;
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,4 +8,5 @@ export const QUERY_LIMITS = {
   dashboardSwipes: 500,
   polls: 50,
   pollVotes: 500,
+  feedback: 200,
 };

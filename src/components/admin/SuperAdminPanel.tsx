@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Copy, Check, Store, Loader2, X,
   Heart, Users, MessageSquarePlus, Settings as SettingsIcon,
-  BarChart3, Send, StopCircle, ChevronDown, ChevronUp, Crown
+  BarChart3, Send, StopCircle, ChevronDown, ChevronUp, Crown, MessageSquare
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
@@ -13,7 +13,7 @@ import { collection, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, 
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
-import { KioskDoc, SwipeDoc, GlobalConfigDoc, SuggestionDoc, PollDoc } from '@/types/firestore';
+import { KioskDoc, SwipeDoc, GlobalConfigDoc, SuggestionDoc, PollDoc, FeedbackDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -38,7 +38,7 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
   const { data: items = [] } = useCollection<ItemDoc>(itemsQuery);
   const { data: swipes = [] } = useCollection<SwipeDoc>(swipesQuery);
 
-  const [activeTab, setActiveTab] = useState<'kiosks' | 'suggestions' | 'polls' | 'settings'>('kiosks');
+  const [activeTab, setActiveTab] = useState<'kiosks' | 'feedback' | 'polls' | 'suggestions' | 'settings'>('kiosks');
   const [showForm, setShowForm] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string } | null>(null);
 
@@ -160,6 +160,12 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
             className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2 whitespace-nowrap", activeTab === 'kiosks' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
           >
             <Store size={14} /> Kiosks
+          </button>
+          <button
+            onClick={() => setActiveTab('feedback')}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2 whitespace-nowrap", activeTab === 'feedback' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+          >
+            <MessageSquare size={14} /> Feedback
           </button>
           <button
             onClick={() => setActiveTab('polls')}
@@ -337,6 +343,7 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
           </>
         )}
 
+        {activeTab === 'feedback' && <SuperFeedbackTab db={db} kiosks={kiosks} />}
         {activeTab === 'polls' && <SuperPollsTab db={db} kiosks={kiosks} subscribedKioskNames={subscribedKioskNames} />}
         {activeTab === 'suggestions' && <SuperSuggestionsTab db={db} kiosks={kiosks} subscribedKioskNames={subscribedKioskNames} />}
         {activeTab === 'settings' && <SuperSettingsTab db={db} />}
@@ -1079,5 +1086,102 @@ function PollCard({
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+/* ─── Feedback Tab ───────────────────────────────────────── */
+
+function SuperFeedbackTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[] }) {
+  const [selectedKiosk, setSelectedKiosk] = useState<string>('All');
+  const [selectedType, setSelectedType] = useState<'All' | 'liked' | 'disliked'>('All');
+
+  const feedbackQuery = useMemo(() => db ? query(collection(db, 'feedback'), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.feedback)) : null, [db]);
+  const { data: allFeedback = [], loading } = useCollection<FeedbackDoc>(feedbackQuery);
+
+  const filtered = useMemo(() => {
+    return allFeedback.filter(fb => {
+      const matchKiosk = selectedKiosk === 'All' || fb.kioskName === selectedKiosk;
+      const matchType = selectedType === 'All' || fb.type === selectedType;
+      return matchKiosk && matchType;
+    });
+  }, [allFeedback, selectedKiosk, selectedType]);
+
+  const totalLikes = filtered.filter(f => f.type === 'liked').length;
+  const totalDislikes = filtered.filter(f => f.type === 'disliked').length;
+
+  if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="font-bold text-lg">All Feedback ({filtered.length})</h2>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <label className="text-xs text-[#888] mb-1.5 block font-bold">Filter by Kiosk</label>
+          <select 
+            value={selectedKiosk}
+            onChange={(e) => setSelectedKiosk(e.target.value)}
+            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl h-11 px-3 text-sm focus:outline-none"
+          >
+            <option value="All">All Kiosks</option>
+            {kiosks.map(k => <option key={k.id} value={k.name}>{k.name}</option>)}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="text-xs text-[#888] mb-1.5 block font-bold">Filter by Type</label>
+          <select 
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value as any)}
+            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl h-11 px-3 text-sm focus:outline-none"
+          >
+            <option value="All">All Types</option>
+            <option value="liked">👍 Liked Only</option>
+            <option value="disliked">👎 Disliked Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 text-center shadow-lg">
+          <p className="text-xs text-[#888] font-bold uppercase mb-1">Total Likes</p>
+          <p className="text-2xl font-black text-[#FF6B35]">{totalLikes}</p>
+        </div>
+        <div className="bg-[#1a1a1a] p-4 rounded-xl border border-white/5 text-center shadow-lg">
+          <p className="text-xs text-[#888] font-bold uppercase mb-1">Total Dislikes</p>
+          <p className="text-2xl font-black text-red-500">{totalDislikes}</p>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-10 bg-[#1a1a1a] rounded-2xl border border-white/5 text-[#888]">
+          <MessageSquare size={32} className="mx-auto mb-3 opacity-50" />
+          <p>No feedback found for the selected filters.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(fb => (
+            <div key={fb.id} className="bg-[#1a1a1a] p-5 rounded-2xl border border-white/5 shadow-md">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h3 className="font-bold text-sm tracking-tight">{fb.itemName}</h3>
+                  <p className="text-xs text-[#888]">{fb.kioskName}</p>
+                </div>
+                <div className={cn(
+                  "px-2 py-1 rounded-lg text-xs font-bold whitespace-nowrap",
+                  fb.type === 'liked' ? "bg-[#FF6B35]/20 text-[#FF6B35]" : "bg-red-500/20 text-red-500"
+                )}>
+                  {fb.type === 'liked' ? '👍 Liked' : '👎 Disliked'}
+                </div>
+              </div>
+              <p className="text-sm text-white/90 italic leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
+                &quot;{fb.reason}&quot;
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

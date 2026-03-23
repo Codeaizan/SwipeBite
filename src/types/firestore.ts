@@ -65,3 +65,14 @@ export interface PollVoteDoc {
   optionIndex: number;
   createdAt?: unknown;
 }
+
+export interface FeedbackDoc {
+  id: string;
+  userId: string;
+  itemId: string;
+  itemName: string;
+  kioskName: string;
+  type: 'liked' | 'disliked';
+  reason: string;
+  createdAt?: unknown;
+}
