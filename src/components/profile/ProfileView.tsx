@@ -113,7 +113,7 @@ export default function ProfileView() {
         </button>
       </div>
 
-      <div className="bg-gradient-to-br from-[#FF6B35] to-[#B42D42] p-6 rounded-[32px] shadow-2xl mb-8 relative overflow-hidden">
+      <div className="shrink-0 bg-gradient-to-br from-[#FF6B35] to-[#B42D42] p-6 rounded-[32px] shadow-2xl mb-8 relative overflow-hidden">
         <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
         <div className="relative z-10 grid grid-cols-4 gap-2 text-center">
           <div>
@@ -135,7 +135,7 @@ export default function ProfileView() {
         </div>
       </div>
 
-      <div className="bg-[#1a1a1a] p-6 rounded-[32px] border border-white/5 mb-8">
+      <div className="shrink-0 bg-[#1a1a1a] p-6 rounded-[32px] border border-white/5 mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-500">
@@ -150,7 +150,7 @@ export default function ProfileView() {
         </div>
       </div>
 
-      <div className="flex bg-[#1a1a1a] p-1 rounded-2xl mb-6">
+      <div className="shrink-0 flex bg-[#1a1a1a] p-1 rounded-2xl mb-6">
         <button 
           onClick={() => setActiveSubTab('liked')}
           className={cn(
