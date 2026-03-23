@@ -1,21 +1,37 @@
 
 "use client"
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/firebase';
-import { signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { toast } from '@/hooks/use-toast';
 
 export default function LoginScreen({ onBack }: { onBack?: () => void }) {
   const auth = useAuth();
+  const [loading, setLoading] = useState(false);
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (!auth) return;
+    setLoading(true);
     const provider = new GoogleAuthProvider();
-    signInWithRedirect(auth, provider);
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      if (error.code !== 'auth/popup-closed-by-user') {
+        toast({
+          variant: 'destructive',
+          title: 'Login Error',
+          description: 'Failed to sign in with Google. Please try again.',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,10 +59,15 @@ export default function LoginScreen({ onBack }: { onBack?: () => void }) {
 
         <Button
           onClick={handleSignIn}
-          className="w-full max-w-xs bg-white text-black hover:bg-white/90 font-bold py-7 text-lg rounded-2xl flex items-center justify-center gap-3 shadow-xl mx-auto"
+          disabled={loading}
+          className="w-full max-w-xs bg-white text-black hover:bg-white/90 font-bold py-7 text-lg rounded-2xl flex items-center justify-center gap-3 shadow-xl mx-auto disabled:opacity-70"
         >
-          <Image src="/google-logo.svg" alt="Google" className="w-6 h-6" width={24} height={24} />
-          Continue with Google
+          {loading ? (
+            <Loader2 className="animate-spin" size={24} />
+          ) : (
+            <Image src="/google-logo.svg" alt="Google" className="w-6 h-6" width={24} height={24} />
+          )}
+          {loading ? 'Signing In...' : 'Continue with Google'}
         </Button>
       </motion.div>
     </div>

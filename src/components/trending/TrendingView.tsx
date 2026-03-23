@@ -35,7 +35,7 @@ function TimePeriodTabs({
   ];
 
   return (
-    <div className="bg-white/5 rounded-2xl p-1 flex mb-4">
+    <div className="bg-white/5 rounded-2xl p-1 flex mb-4 flex-shrink-0">
       {tabs.map(t => (
         <button
           key={t.key}
@@ -64,21 +64,24 @@ function FilterPills<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-      {options.map(opt => (
-        <button
-          key={opt}
-          onClick={() => onChange(opt)}
-          className={cn(
-            'px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0 border whitespace-nowrap',
-            value === opt
-              ? 'bg-[#FF6B35] border-[#FF6B35] text-white'
-              : 'bg-[#2a2a2a] border-transparent text-white',
-          )}
-        >
-          {opt}
-        </button>
-      ))}
+    <div className="relative">
+      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar pr-8">
+        {options.map(opt => (
+          <button
+            key={opt}
+            onClick={() => onChange(opt)}
+            className={cn(
+              'px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0 border whitespace-nowrap',
+              value === opt
+                ? 'bg-[#FF6B35] border-[#FF6B35] text-white'
+                : 'bg-[#2a2a2a] border-transparent text-white',
+            )}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+      <div className="absolute top-0 right-0 bottom-2 w-12 bg-gradient-to-l from-[#0f0f0f] to-transparent pointer-events-none" />
     </div>
   );
 }
@@ -347,14 +350,16 @@ export default function TrendingView() {
       <TimePeriodTabs value={timePeriod} onChange={setTimePeriod} />
 
       {/* Layer 2: Cuisine Filter */}
-      <FilterPills
-        options={CUISINE_CATEGORIES}
-        value={cuisineFilter}
-        onChange={handleCuisineChange}
-      />
+      <div className="flex-shrink-0">
+        <FilterPills
+          options={CUISINE_CATEGORIES}
+          value={cuisineFilter}
+          onChange={handleCuisineChange}
+        />
+      </div>
 
       {/* Layer 3: Price Filter */}
-      <div className="mt-2 mb-6">
+      <div className="mt-2 mb-6 flex-shrink-0">
         <FilterPills
           options={priceLabels}
           value={priceFilter}

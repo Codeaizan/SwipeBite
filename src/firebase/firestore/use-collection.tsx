@@ -3,8 +3,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Query, onSnapshot, DocumentData, queryEqual } from 'firebase/firestore';
-import { errorEmitter } from '../error-emitter';
-import { FirestorePermissionError } from '../errors';
 
 export function useCollection<T extends DocumentData = DocumentData>(query: Query<DocumentData> | null) {
   const [data, setData] = useState<T[]>([]);
@@ -41,12 +39,7 @@ export function useCollection<T extends DocumentData = DocumentData>(query: Quer
       },
       async (err) => {
         if (err.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: 'unknown',
-            operation: 'list',
-            code: err.code,
-          });
-          errorEmitter.emit('permission-error', permissionError);
+          console.warn('Firestore permission denied for query. The user may not have access to these documents yet.');
         } else {
           console.warn('Firestore query error:', err.code, err.message);
         }
