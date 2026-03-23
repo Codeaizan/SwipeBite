@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
 
 export default function LoginScreen({ onBack }: { onBack?: () => void }) {
   const auth = useAuth();
@@ -15,7 +15,7 @@ export default function LoginScreen({ onBack }: { onBack?: () => void }) {
   const handleSignIn = () => {
     if (!auth) return;
     const provider = new GoogleAuthProvider();
-    signInWithPopup(auth, provider);
+    signInWithRedirect(auth, provider);
   };
 
   return (

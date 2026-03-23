@@ -40,12 +40,16 @@ export function useCollection<T extends DocumentData = DocumentData>(query: Quer
         setLoading(false);
       },
       async (err) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'unknown',
-          operation: 'list',
-          code: err.code,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: 'unknown',
+            operation: 'list',
+            code: err.code,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          console.warn('Firestore query error:', err.code, err.message);
+        }
         setError(err);
         setLoading(false);
       }

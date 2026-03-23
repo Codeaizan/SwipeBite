@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
+import { User, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { useAuth } from '../provider';
 
 export function useUser() {
@@ -16,6 +16,9 @@ export function useUser() {
       setLoading(false);
       return;
     }
+
+    // Process the redirect result when returning from Google sign-in
+    getRedirectResult(auth).catch(() => {});
 
     return onAuthStateChanged(auth, (user) => {
       setUser(user);
