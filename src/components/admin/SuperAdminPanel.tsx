@@ -676,6 +676,21 @@ function SuperPollsTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, ki
     }
   };
 
+  const handleRevoke = async (poll: PollDoc, kioskName: string) => {
+    if (!db) return;
+    setProcessing(poll.id);
+    try {
+      await updateDoc(doc(db, 'polls', poll.id), {
+        distributedTo: (poll.distributedTo || []).filter(n => n !== kioskName),
+      });
+      toast({ title: '🔄 Revoked', description: `Removed ${kioskName} from this poll.` });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to revoke distribution.' });
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
 
   return (
@@ -782,6 +797,7 @@ function SuperPollsTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, ki
               selectedKiosks={selectedKiosks}
               setSelectedKiosks={setSelectedKiosks}
               onDistribute={() => handleDistribute(poll)}
+              onRevoke={(kioskName) => handleRevoke(poll, kioskName)}
             />
           ))}
         </div>
@@ -836,6 +852,7 @@ function PollCard({
   selectedKiosks,
   setSelectedKiosks,
   onDistribute,
+  onRevoke,
 }: {
   poll: PollDoc;
   expanded: boolean;
@@ -848,6 +865,7 @@ function PollCard({
   selectedKiosks: Record<string, string[]>;
   setSelectedKiosks: (v: Record<string, string[]>) => void;
   onDistribute: () => void;
+  onRevoke?: (kioskName: string) => void;
 }) {
   const isActive = poll.status === 'active';
   const maxVotes = Math.max(...(poll.optionVotes || []), 1);
@@ -935,7 +953,7 @@ function PollCard({
                   exit={{ height: 0, opacity: 0 }}
                   className="mt-4 pt-4 border-t border-white/5"
                 >
-                  <p className="text-xs text-[#888] mb-3">Select kiosks to receive this poll&apos;s data:</p>
+                  <p className="text-xs text-[#888] mb-3">Select kiosks to receive this poll&apos;s data. Tap a sent kiosk to revoke:</p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {kiosks.map(k => {
                       const isSelected = (selectedKiosks[poll.id] || []).includes(k.name);
@@ -943,8 +961,11 @@ function PollCard({
                       return (
                         <button
                           key={k.id}
-                          disabled={alreadySent}
                           onClick={() => {
+                            if (alreadySent && onRevoke) {
+                              onRevoke(k.name);
+                              return;
+                            }
                             const current = selectedKiosks[poll.id] || [];
                             const next = isSelected ? current.filter(n => n !== k.name) : [...current, k.name];
                             setSelectedKiosks({ ...selectedKiosks, [poll.id]: next });
@@ -952,13 +973,13 @@ function PollCard({
                           className={cn(
                             "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
                             alreadySent
-                              ? "bg-green-500/10 border-green-500/30 text-green-500 cursor-default"
+                              ? "bg-green-500/10 border-green-500/30 text-green-500 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
                               : isSelected
                                 ? "bg-purple-500/20 border-purple-500/50 text-purple-400"
                                 : "bg-black/40 border-white/10 text-[#888] hover:bg-white/5 hover:text-white"
                           )}
                         >
-                          {alreadySent ? `✓ ${k.name}` : k.name}
+                          {alreadySent ? `✕ ${k.name}` : k.name}
                         </button>
                       );
                     })}
