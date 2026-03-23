@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useDoc } from '@/firebase';
 import { QUERY_LIMITS } from '@/lib/query-limits';
+import { CUISINE_CATEGORIES } from '@/hooks/use-trends';
 
 type KioskItem = FoodItem & { isAvailable?: boolean };
 
@@ -207,10 +208,13 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: KioskItem[]; kio
 
 /* ─── Add Item Form ────────────────────────────────────────── */
 
+const FOOD_CATEGORIES = CUISINE_CATEGORIES.filter(c => c !== 'All');
+
 function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kioskLocation: string; db: ReturnType<typeof useFirestore>; onDone: () => void }) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [isVeg, setIsVeg] = useState(true);
+  const [cuisine, setCuisine] = useState<string>(FOOD_CATEGORIES[0]);
   const [imageUrl, setImageUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -239,6 +243,7 @@ function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kios
       location: kioskLocation || kiosk,
       price: parseInt(price),
       isVeg,
+      cuisine,
       imageUrl: finalImageUrl,
       isAvailable: true,
     });
@@ -267,6 +272,18 @@ function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kios
             <span className="text-sm font-bold">{isVeg ? '🟢 Veg' : '🔴 Non-Veg'}</span>
           </div>
         </div>
+      </div>
+      <div>
+        <label className="text-xs font-bold text-[#888] uppercase tracking-wider mb-1 block">Category</label>
+        <select
+          value={cuisine}
+          onChange={e => setCuisine(e.target.value)}
+          className="w-full bg-[#0f0f0f] border border-white/10 rounded-xl h-11 text-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/50 appearance-none cursor-pointer"
+        >
+          {FOOD_CATEGORIES.map(cat => (
+            <option key={cat} value={cat} className="bg-[#1a1a1a] text-white">{cat}</option>
+          ))}
+        </select>
       </div>
       <div>
         <label className="text-xs font-bold text-[#888] uppercase tracking-wider mb-1 block">Image URL (optional)</label>
