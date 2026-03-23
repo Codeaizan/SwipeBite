@@ -42,3 +42,23 @@ export interface GlobalConfigDoc {
   id?: string;
   suggestionCharLimit: number;
 }
+
+export interface PollDoc {
+  id: string;
+  question: string;
+  options: string[];
+  status: 'active' | 'ended';
+  totalVotes: number;
+  optionVotes: number[];
+  distributedTo: string[];
+  createdAt?: unknown;
+  endedAt?: unknown;
+}
+
+export interface PollVoteDoc {
+  id: string;
+  pollId: string;
+  userId: string;
+  optionIndex: number;
+  createdAt?: unknown;
+}

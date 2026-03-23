@@ -5,12 +5,12 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Eye, EyeOff, Heart, ArrowBigUpDash,
-  TrendingUp, Package, BarChart, Loader2, X, MessageSquarePlus
+  TrendingUp, Package, BarChart, Loader2, X, MessageSquarePlus, BarChart3
 } from 'lucide-react';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, doc, setDoc, deleteDoc, updateDoc, query, limit, where } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, updateDoc, query, limit, where, orderBy } from 'firebase/firestore';
 import { FoodItem } from '@/types/food-item';
-import { KioskDoc, SwipeDoc, SuggestionDoc } from '@/types/firestore';
+import { KioskDoc, SwipeDoc, SuggestionDoc, PollDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -23,7 +23,7 @@ import { CUISINE_CATEGORIES } from '@/hooks/use-trends';
 type KioskItem = FoodItem & { isAvailable?: boolean };
 
 export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogout: () => void }) {
-  const [activeTab, setActiveTab] = useState<'items' | 'analytics' | 'suggestions'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'analytics' | 'suggestions' | 'polls'>('items');
   const db = useFirestore();
 
   const kioskDocId = kiosk.toLowerCase().replace(/\s+/g, '-');
@@ -62,33 +62,42 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex bg-[#1a1a1a] p-1 rounded-2xl mb-8">
+        <div className="flex bg-[#1a1a1a] p-1 rounded-2xl mb-8 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('items')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm",
+              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm whitespace-nowrap",
               activeTab === 'items' ? "bg-[#2a2a2a] text-[#FF6B35]" : "text-[#888]"
             )}
           >
-            <Package size={16} /> Menu Items
+            <Package size={14} /> Items
+          </button>
+          <button
+            onClick={() => setActiveTab('polls')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm whitespace-nowrap",
+              activeTab === 'polls' ? "bg-[#2a2a2a] text-[#FF6B35]" : "text-[#888]"
+            )}
+          >
+            <BarChart3 size={14} /> Polls
           </button>
           <button
             onClick={() => setActiveTab('suggestions')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm",
+              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm whitespace-nowrap",
               activeTab === 'suggestions' ? "bg-[#2a2a2a] text-[#FF6B35]" : "text-[#888]"
             )}
           >
-            <MessageSquarePlus size={16} /> Suggestions
+            <MessageSquarePlus size={14} /> Tips
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm",
+              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-bold text-sm whitespace-nowrap",
               activeTab === 'analytics' ? "bg-[#2a2a2a] text-[#FF6B35]" : "text-[#888]"
             )}
           >
-            <BarChart size={16} /> Analytics
+            <BarChart size={14} /> Stats
           </button>
         </div>
 
@@ -100,6 +109,8 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
           <ItemsTab items={kioskItems} kiosk={kiosk} kioskLocation={kioskLocation} db={db} />
         ) : activeTab === 'suggestions' ? (
           <SuggestionsTab kiosk={kiosk} db={db} />
+        ) : activeTab === 'polls' ? (
+          <KioskPollsTab kiosk={kiosk} db={db} />
         ) : (
           <AnalyticsTab items={kioskItems} swipes={kioskSwipes} />
         )}
@@ -108,7 +119,7 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
   );
 }
 
-/* ─── Items Tab ────────────────────────────────────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Items Tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function ItemsTab({ items, kiosk, kioskLocation, db }: { items: KioskItem[]; kiosk: string; kioskLocation: string; db: ReturnType<typeof useFirestore> }) {
   const [showForm, setShowForm] = useState(false);
@@ -151,7 +162,7 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: KioskItem[]; kio
 
       {items.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center">
-          <span className="text-5xl mb-4">📋</span>
+          <span className="text-5xl mb-4">Ã°Å¸â€œâ€¹</span>
           <h3 className="font-bold text-lg mb-2">No items yet</h3>
           <p className="text-[#888] text-sm">Add food items to your kiosk menu.</p>
         </div>
@@ -175,7 +186,7 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: KioskItem[]; kio
 
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-sm truncate">{item.name}</h3>
-                <p className="text-[10px] text-[#888]">₹{item.price} · {item.isVeg ? '🟢 Veg' : '🔴 Non-Veg'}</p>
+                <p className="text-[10px] text-[#888]">Ã¢â€šÂ¹{item.price} Ã‚Â· {item.isVeg ? 'Ã°Å¸Å¸Â¢ Veg' : 'Ã°Å¸â€Â´ Non-Veg'}</p>
               </div>
 
               <div className="flex items-center gap-3 flex-shrink-0">
@@ -206,7 +217,7 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: KioskItem[]; kio
   );
 }
 
-/* ─── Add Item Form ────────────────────────────────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Add Item Form Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 const FOOD_CATEGORIES = CUISINE_CATEGORIES.filter(c => c !== 'All');
 
@@ -262,14 +273,14 @@ function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kios
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-bold text-[#888] uppercase tracking-wider mb-1 block">Price (₹)</label>
+          <label className="text-xs font-bold text-[#888] uppercase tracking-wider mb-1 block">Price (Ã¢â€šÂ¹)</label>
           <Input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="80" min="1"
             className="bg-[#0f0f0f] border-white/10 rounded-xl h-11 text-white" required />
         </div>
         <div className="flex items-end">
           <div className="flex items-center gap-3 h-11">
             <Switch checked={isVeg} onCheckedChange={setIsVeg} />
-            <span className="text-sm font-bold">{isVeg ? '🟢 Veg' : '🔴 Non-Veg'}</span>
+            <span className="text-sm font-bold">{isVeg ? 'Ã°Å¸Å¸Â¢ Veg' : 'Ã°Å¸â€Â´ Non-Veg'}</span>
           </div>
         </div>
       </div>
@@ -298,7 +309,7 @@ function AddItemForm({ kiosk, kioskLocation, db, onDone }: { kiosk: string; kios
   );
 }
 
-/* ─── Analytics Tab ────────────────────────────────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Analytics Tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function AnalyticsTab({ items, swipes }: { items: FoodItem[]; swipes: SwipeDoc[] }) {
   const totalSwipes = swipes.length;
@@ -366,6 +377,7 @@ function AnalyticsTab({ items, swipes }: { items: FoodItem[]; swipes: SwipeDoc[]
     </div>
   );
 }
+
 function StatCard({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
     <div className="bg-[#1a1a1a] p-5 rounded-[24px] border border-white/5">
@@ -375,7 +387,7 @@ function StatCard({ label, value, color }: { label: string; value: number; color
   );
 }
 
-/* ─── Suggestions Tab ─────────────────────────────────────── */
+/* â”€â”€â”€ Suggestions Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function SuggestionsTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof useFirestore> }) {
   const q = useMemo(() => db ? query(collection(db, 'suggestions'), where('forwardedTo', 'array-contains', kiosk)) : null, [db, kiosk]);
@@ -402,6 +414,74 @@ function SuggestionsTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof us
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* â”€â”€â”€ Kiosk Polls Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+function KioskPollsTab({ kiosk, db }: { kiosk: string; db: ReturnType<typeof useFirestore> }) {
+  const pollsQuery = useMemo(
+    () => db ? query(collection(db, 'polls'), where('distributedTo', 'array-contains', kiosk), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.polls)) : null,
+    [db, kiosk]
+  );
+  const { data: polls = [], loading } = useCollection<PollDoc>(pollsQuery);
+
+  if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
+
+  if (polls.length === 0) {
+    return (
+      <div className="flex flex-col items-center py-16 text-center bg-[#1a1a1a] rounded-2xl border border-dashed border-white/10">
+        <BarChart3 className="text-[#888] mb-4" size={40} />
+        <h3 className="font-bold text-lg mb-2">No polls shared yet</h3>
+        <p className="text-[#888] text-sm">The super admin hasn&apos;t distributed any poll data to your kiosk yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-bold text-lg">Poll Results</h2>
+      {polls.map(poll => {
+        const maxVotes = Math.max(...(poll.optionVotes || []), 1);
+        return (
+          <div key={poll.id} className="bg-[#1a1a1a] p-5 rounded-2xl border border-white/5">
+            <div className="flex items-start justify-between mb-1">
+              <h3 className="font-bold text-white text-sm leading-snug flex-1">{poll.question}</h3>
+              <span className={cn(
+                "text-[10px] font-bold px-2 py-0.5 rounded-md ml-2",
+                poll.status === 'active' ? "bg-green-500/20 text-green-400" : "bg-white/10 text-[#888]"
+              )}>
+                {poll.status === 'active' ? 'LIVE' : 'ENDED'}
+              </span>
+            </div>
+            <p className="text-[11px] text-[#888] mb-4">{poll.totalVotes} total vote{poll.totalVotes !== 1 ? 's' : ''}</p>
+
+            <div className="space-y-3">
+              {poll.options.map((opt, idx) => {
+                const votes = poll.optionVotes?.[idx] || 0;
+                const pct = poll.totalVotes > 0 ? Math.round((votes / poll.totalVotes) * 100) : 0;
+                return (
+                  <div key={idx}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-white font-semibold">{opt}</span>
+                      <span className="text-[#888]">{votes} ({pct}%)</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(votes / maxVotes) * 100}%` }}
+                        transition={{ duration: 0.6, ease: 'easeOut' }}
+                        className="h-full bg-gradient-to-r from-[#FF6B35] to-orange-400 rounded-full"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

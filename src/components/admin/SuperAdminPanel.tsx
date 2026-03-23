@@ -4,14 +4,15 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Plus, Trash2, Copy, Check, Store, Loader2, X,
-  Heart, Users, MessageSquarePlus, Settings as SettingsIcon
+  Heart, Users, MessageSquarePlus, Settings as SettingsIcon,
+  BarChart3, Send, StopCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, limit, getDocs, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, limit, getDocs, where, writeBatch, orderBy } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
-import { KioskDoc, SwipeDoc, GlobalConfigDoc, SuggestionDoc } from '@/types/firestore';
+import { KioskDoc, SwipeDoc, GlobalConfigDoc, SuggestionDoc, PollDoc } from '@/types/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -36,7 +37,7 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
   const { data: items = [] } = useCollection<ItemDoc>(itemsQuery);
   const { data: swipes = [] } = useCollection<SwipeDoc>(swipesQuery);
 
-  const [activeTab, setActiveTab] = useState<'kiosks' | 'suggestions' | 'settings'>('kiosks');
+  const [activeTab, setActiveTab] = useState<'kiosks' | 'suggestions' | 'polls' | 'settings'>('kiosks');
   const [showForm, setShowForm] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string } | null>(null);
 
@@ -114,24 +115,30 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
         </div>
 
         {/* Tabs */}
-        <div className="flex bg-[#1a1a1a] rounded-xl p-1 mb-8 border border-white/5">
+        <div className="flex bg-[#1a1a1a] rounded-xl p-1 mb-8 border border-white/5 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('kiosks')}
-            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2", activeTab === 'kiosks' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2 whitespace-nowrap", activeTab === 'kiosks' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
           >
-            <Store size={16} /> Kiosks
+            <Store size={14} /> Kiosks
+          </button>
+          <button
+            onClick={() => setActiveTab('polls')}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2 whitespace-nowrap", activeTab === 'polls' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+          >
+            <BarChart3 size={14} /> Polls
           </button>
           <button
             onClick={() => setActiveTab('suggestions')}
-            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2", activeTab === 'suggestions' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2 whitespace-nowrap", activeTab === 'suggestions' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
           >
-            <MessageSquarePlus size={16} /> Suggestions
+            <MessageSquarePlus size={14} /> Tips
           </button>
           <button
             onClick={() => setActiveTab('settings')}
-            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2", activeTab === 'settings' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
+            className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors flex justify-center items-center gap-2 whitespace-nowrap", activeTab === 'settings' ? "bg-white/10 text-white" : "text-[#888] hover:text-white")}
           >
-            <SettingsIcon size={16} /> Settings
+            <SettingsIcon size={14} /> Settings
           </button>
         </div>
 
@@ -267,6 +274,7 @@ export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) 
           </>
         )}
 
+        {activeTab === 'polls' && <SuperPollsTab db={db} kiosks={kiosks} />}
         {activeTab === 'suggestions' && <SuperSuggestionsTab db={db} kiosks={kiosks} />}
         {activeTab === 'settings' && <SuperSettingsTab db={db} />}
       </div>
@@ -573,5 +581,401 @@ function SuperSettingsTab({ db }: { db: ReturnType<typeof useFirestore> }) {
         {loading ? <Loader2 size={18} className="animate-spin" /> : 'Save Settings'}
       </Button>
     </div>
+  );
+}
+
+/* ─── Polls Tab ──────────────────────────────────────────── */
+
+function SuperPollsTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[] }) {
+  const pollsQuery = useMemo(() => db ? query(collection(db, 'polls'), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.polls)) : null, [db]);
+  const { data: polls = [], loading } = useCollection<PollDoc>(pollsQuery);
+
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [expandedPoll, setExpandedPoll] = useState<string | null>(null);
+  const [distributingPoll, setDistributingPoll] = useState<string | null>(null);
+  const [selectedKiosks, setSelectedKiosks] = useState<Record<string, string[]>>({});
+  const [processing, setProcessing] = useState<string | null>(null);
+
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState(['', '']);
+  const [creating, setCreating] = useState(false);
+
+  const activePolls = polls.filter(p => p.status === 'active');
+  const endedPolls = polls.filter(p => p.status === 'ended');
+
+  const handleCreatePoll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    const trimmedQ = question.trim();
+    const trimmedOpts = options.map(o => o.trim()).filter(o => o.length > 0);
+    if (!trimmedQ || trimmedOpts.length < 2) {
+      toast({ variant: 'destructive', title: 'Invalid poll', description: 'Provide a question and at least 2 options.' });
+      return;
+    }
+    if (activePolls.length > 0) {
+      toast({ variant: 'destructive', title: 'Active poll exists', description: 'End the current active poll before creating a new one.' });
+      return;
+    }
+    setCreating(true);
+    try {
+      const pollId = `poll_${Date.now()}`;
+      await setDoc(doc(db, 'polls', pollId), {
+        question: trimmedQ,
+        options: trimmedOpts,
+        status: 'active',
+        totalVotes: 0,
+        optionVotes: trimmedOpts.map(() => 0),
+        distributedTo: [],
+        createdAt: serverTimestamp(),
+      });
+      toast({ title: '🗳️ Poll created!', description: 'Students can now vote on the home page.' });
+      setQuestion('');
+      setOptions(['', '']);
+      setShowCreateForm(false);
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to create poll.' });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleEndPoll = async (pollId: string) => {
+    if (!db) return;
+    setProcessing(pollId);
+    try {
+      await updateDoc(doc(db, 'polls', pollId), {
+        status: 'ended',
+        endedAt: serverTimestamp(),
+      });
+      toast({ title: 'Poll ended', description: 'Students can no longer vote on this poll.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to end poll.' });
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleDistribute = async (poll: PollDoc) => {
+    if (!db) return;
+    const targets = selectedKiosks[poll.id] || [];
+    if (targets.length === 0) {
+      toast({ variant: 'destructive', title: 'Select kiosks', description: 'Pick at least one kiosk.' });
+      return;
+    }
+    setProcessing(poll.id);
+    try {
+      await updateDoc(doc(db, 'polls', poll.id), {
+        distributedTo: Array.from(new Set([...(poll.distributedTo || []), ...targets])),
+      });
+      toast({ title: '📤 Distributed!', description: `Sent to ${targets.length} kiosk(s).` });
+      setDistributingPoll(null);
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to distribute poll data.' });
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  if (loading) return <div className="py-10 text-center text-[#888]"><Loader2 className="animate-spin inline" /></div>;
+
+  return (
+    <div className="space-y-6">
+      {/* Create Poll */}
+      <div className="flex justify-between items-center">
+        <h2 className="font-bold text-lg">Polls</h2>
+        <Button
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          disabled={activePolls.length > 0 && !showCreateForm}
+          className="bg-purple-600 hover:bg-purple-700 rounded-xl font-bold text-sm gap-2"
+        >
+          {showCreateForm ? <X size={16} /> : <Plus size={16} />}
+          {showCreateForm ? 'Cancel' : 'New Poll'}
+        </Button>
+      </div>
+
+      {activePolls.length > 0 && !showCreateForm && (
+        <p className="text-[11px] text-[#888] -mt-4">End the active poll before creating a new one.</p>
+      )}
+
+      <AnimatePresence>
+        {showCreateForm && (
+          <motion.form
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            onSubmit={handleCreatePoll}
+            className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/5 space-y-4"
+          >
+            <div>
+              <label className="text-xs font-bold text-[#888] uppercase tracking-wider mb-1 block">Question</label>
+              <Input
+                value={question}
+                onChange={e => setQuestion(e.target.value)}
+                placeholder="What's your favorite campus food?"
+                className="bg-[#0f0f0f] border-white/10 rounded-xl h-11 text-white"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-[#888] uppercase tracking-wider mb-2 block">Options</label>
+              <div className="space-y-2">
+                {options.map((opt, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      value={opt}
+                      onChange={e => {
+                        const next = [...options];
+                        next[idx] = e.target.value;
+                        setOptions(next);
+                      }}
+                      placeholder={`Option ${idx + 1}`}
+                      className="bg-[#0f0f0f] border-white/10 rounded-xl h-11 text-white flex-1"
+                    />
+                    {options.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => setOptions(options.filter((_, i) => i !== idx))}
+                        className="w-11 h-11 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500/20"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setOptions([...options, ''])}
+                className="mt-2 text-xs text-purple-400 font-bold hover:text-purple-300"
+              >
+                + Add option
+              </button>
+            </div>
+            <Button
+              type="submit"
+              disabled={creating}
+              className="w-full bg-purple-600 hover:bg-purple-700 font-bold rounded-xl py-5"
+            >
+              {creating ? <Loader2 className="animate-spin" size={18} /> : 'Publish Poll'}
+            </Button>
+          </motion.form>
+        )}
+      </AnimatePresence>
+
+      {/* Active Polls */}
+      {activePolls.length > 0 && (
+        <div>
+          <h3 className="text-sm font-bold text-green-400 mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" /> Active
+          </h3>
+          {activePolls.map(poll => (
+            <PollCard
+              key={poll.id}
+              poll={poll}
+              expanded={expandedPoll === poll.id}
+              onToggle={() => setExpandedPoll(expandedPoll === poll.id ? null : poll.id)}
+              onEnd={() => handleEndPoll(poll.id)}
+              processing={processing === poll.id}
+              kiosks={kiosks}
+              distributingPoll={distributingPoll}
+              setDistributingPoll={setDistributingPoll}
+              selectedKiosks={selectedKiosks}
+              setSelectedKiosks={setSelectedKiosks}
+              onDistribute={() => handleDistribute(poll)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Ended Polls */}
+      {endedPolls.length > 0 && (
+        <div>
+          <h3 className="text-sm font-bold text-[#888] mb-3">Ended ({endedPolls.length})</h3>
+          <div className="space-y-3">
+            {endedPolls.map(poll => (
+              <PollCard
+                key={poll.id}
+                poll={poll}
+                expanded={expandedPoll === poll.id}
+                onToggle={() => setExpandedPoll(expandedPoll === poll.id ? null : poll.id)}
+                processing={processing === poll.id}
+                kiosks={kiosks}
+                distributingPoll={distributingPoll}
+                setDistributingPoll={setDistributingPoll}
+                selectedKiosks={selectedKiosks}
+                setSelectedKiosks={setSelectedKiosks}
+                onDistribute={() => handleDistribute(poll)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {polls.length === 0 && (
+        <div className="flex flex-col items-center py-16 text-center bg-[#1a1a1a] rounded-2xl border border-dashed border-white/10">
+          <BarChart3 className="text-[#888] mb-4" size={40} />
+          <h3 className="font-bold text-lg mb-2">No polls yet</h3>
+          <p className="text-[#888] text-sm">Create your first poll to start collecting data.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Poll Card ──────────────────────────────────────────── */
+
+function PollCard({
+  poll,
+  expanded,
+  onToggle,
+  onEnd,
+  processing,
+  kiosks,
+  distributingPoll,
+  setDistributingPoll,
+  selectedKiosks,
+  setSelectedKiosks,
+  onDistribute,
+}: {
+  poll: PollDoc;
+  expanded: boolean;
+  onToggle: () => void;
+  onEnd?: () => void;
+  processing: boolean;
+  kiosks: KioskDoc[];
+  distributingPoll: string | null;
+  setDistributingPoll: (id: string | null) => void;
+  selectedKiosks: Record<string, string[]>;
+  setSelectedKiosks: (v: Record<string, string[]>) => void;
+  onDistribute: () => void;
+}) {
+  const isActive = poll.status === 'active';
+  const maxVotes = Math.max(...(poll.optionVotes || []), 1);
+
+  return (
+    <motion.div layout className="bg-[#1a1a1a] rounded-2xl border border-white/5 overflow-hidden mb-3">
+      {/* Header */}
+      <button onClick={onToggle} className="w-full text-left p-5 flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <h4 className="font-bold text-white text-sm leading-snug">{poll.question}</h4>
+          <div className="flex items-center gap-3 mt-2 text-[11px] text-[#888]">
+            <span>{poll.totalVotes} vote{poll.totalVotes !== 1 ? 's' : ''}</span>
+            <span>·</span>
+            <span>{poll.options.length} options</span>
+            {poll.distributedTo?.length > 0 && (
+              <>
+                <span>·</span>
+                <span className="text-purple-400">Sent to {poll.distributedTo.length} kiosk(s)</span>
+              </>
+            )}
+          </div>
+        </div>
+        {expanded ? <ChevronUp size={16} className="text-[#888] mt-1" /> : <ChevronDown size={16} className="text-[#888] mt-1" />}
+      </button>
+
+      {/* Expanded content */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="px-5 pb-5"
+          >
+            {/* Results */}
+            <div className="space-y-3 mb-5">
+              {poll.options.map((opt, idx) => {
+                const votes = poll.optionVotes?.[idx] || 0;
+                const pct = poll.totalVotes > 0 ? Math.round((votes / poll.totalVotes) * 100) : 0;
+                return (
+                  <div key={idx}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-white font-semibold">{opt}</span>
+                      <span className="text-[#888]">{votes} ({pct}%)</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(votes / maxVotes) * 100}%` }}
+                        transition={{ duration: 0.6, ease: 'easeOut' }}
+                        className="h-full bg-gradient-to-r from-purple-500 to-[#FF6B35] rounded-full"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 flex-wrap">
+              {isActive && onEnd && (
+                <Button
+                  onClick={onEnd}
+                  disabled={processing}
+                  className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 font-bold rounded-xl text-xs gap-2"
+                >
+                  {processing ? <Loader2 size={14} className="animate-spin" /> : <StopCircle size={14} />}
+                  End Poll
+                </Button>
+              )}
+              <Button
+                onClick={() => setDistributingPoll(distributingPoll === poll.id ? null : poll.id)}
+                className="bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 font-bold rounded-xl text-xs gap-2"
+              >
+                <Send size={14} /> Send to Kiosks
+              </Button>
+            </div>
+
+            {/* Kiosk Distribution */}
+            <AnimatePresence>
+              {distributingPoll === poll.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="mt-4 pt-4 border-t border-white/5"
+                >
+                  <p className="text-xs text-[#888] mb-3">Select kiosks to receive this poll&apos;s data:</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {kiosks.map(k => {
+                      const isSelected = (selectedKiosks[poll.id] || []).includes(k.name);
+                      const alreadySent = poll.distributedTo?.includes(k.name);
+                      return (
+                        <button
+                          key={k.id}
+                          disabled={alreadySent}
+                          onClick={() => {
+                            const current = selectedKiosks[poll.id] || [];
+                            const next = isSelected ? current.filter(n => n !== k.name) : [...current, k.name];
+                            setSelectedKiosks({ ...selectedKiosks, [poll.id]: next });
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                            alreadySent
+                              ? "bg-green-500/10 border-green-500/30 text-green-500 cursor-default"
+                              : isSelected
+                                ? "bg-purple-500/20 border-purple-500/50 text-purple-400"
+                                : "bg-black/40 border-white/10 text-[#888] hover:bg-white/5 hover:text-white"
+                          )}
+                        >
+                          {alreadySent ? `✓ ${k.name}` : k.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    onClick={onDistribute}
+                    disabled={processing || !(selectedKiosks[poll.id]?.length > 0)}
+                    className="w-full bg-purple-600 hover:bg-purple-700 font-bold rounded-xl py-4 text-sm"
+                  >
+                    {processing ? <Loader2 size={16} className="animate-spin" /> : 'Distribute to Selected'}
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

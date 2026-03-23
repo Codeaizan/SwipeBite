@@ -12,6 +12,7 @@ import TrendingView from '@/components/trending/TrendingView';
 import DashboardView from '@/components/dashboard/DashboardView';
 import ProfileView from '@/components/profile/ProfileView';
 import InstallSystem from '@/components/install/InstallSystem';
+import PollBanner from '@/components/poll/PollBanner';
 import RoleSelector from '@/components/auth/RoleSelector';
 import LoginScreen from '@/components/auth/LoginScreen';
 import OwnerLogin from '@/components/auth/OwnerLogin';
@@ -128,7 +129,12 @@ export default function Home() {
             transition={{ duration: 0.25, ease: "easeOut" }}
             className="flex-1 flex flex-col min-h-0"
           >
-            {activeTab === 'home' && <SwipeView onSwipeUpdate={handleSwipeUpdate} />}
+            {activeTab === 'home' && (
+              <>
+                <PollBanner />
+                <SwipeView onSwipeUpdate={handleSwipeUpdate} />
+              </>
+            )}
             {activeTab === 'trending' && <TrendingView />}
             {activeTab === 'dashboard' && <DashboardView />}
             {activeTab === 'profile' && <ProfileView />}

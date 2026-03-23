@@ -83,5 +83,16 @@ service cloud.firestore {
       allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
+    match /polls/{pollId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /pollVotes/{voteId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSuperAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update, delete: if false;
+    }
   }
 }

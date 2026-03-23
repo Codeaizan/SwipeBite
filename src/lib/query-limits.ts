@@ -6,4 +6,6 @@ export const QUERY_LIMITS = {
   // Lower limits for student-facing aggregate views to reduce reads
   trendingSwipes: 500,
   dashboardSwipes: 500,
+  polls: 50,
+  pollVotes: 500,
 };
