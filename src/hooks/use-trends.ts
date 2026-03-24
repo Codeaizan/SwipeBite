@@ -136,6 +136,8 @@ export function useTrends(
     !authLoading && user ? swipesQuery : null
   );
 
+  console.log('[DEBUG] swipes in hook:', swipes.length, swipes.map(s => s.userId?.slice(0,6)));
+
   if (process.env.NODE_ENV === 'development') {
     console.log('[useTrends] Swipes data:', {
       swipesCount: swipes.length,
