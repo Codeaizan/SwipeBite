@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where, limit, orderBy } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { FoodItem } from '@/types/food-item';
 import { SwipeDoc } from '@/types/firestore';
@@ -117,7 +117,7 @@ export function useTrends(
     [db],
   );
   const swipesQuery = useMemo(
-    () => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    () => db ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
     [db],
   );
 
@@ -181,7 +181,7 @@ export function useTrends(
         rankMovement,
       };
     }).sort((a, b) => b.likeRate - a.likeRate);
-  }, [items, swipes, timePeriod, periodMs, hasAnyData]);
+  }, [items, swipes, timePeriod, periodMs, hasAnyData, now]);
 
   // Apply filters
   const rankedItems = useMemo<RankedTrendItem[]>(() => {

@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useAuth, useCollection } from '@/firebase';
-import { collection, query, where, limit, doc, setDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, where, limit, orderBy, doc, setDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { QUERY_LIMITS } from '@/lib/query-limits';
 import { toast } from '@/hooks/use-toast';
@@ -30,7 +30,7 @@ export default function ProfileView() {
 
   const swipesQuery = useMemo(() => {
     if (!db || !user) return null;
-    return query(collection(db, 'swipes'), where('userId', '==', user.uid), limit(QUERY_LIMITS.userSwipes));
+    return query(collection(db, 'swipes'), where('userId', '==', user.uid), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.userSwipes));
   }, [db, user]);
 
   const itemsQuery = useMemo(() => {
