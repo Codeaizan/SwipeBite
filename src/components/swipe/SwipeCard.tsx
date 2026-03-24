@@ -7,6 +7,7 @@ import { Share2, MapPin, MessageSquarePlus } from 'lucide-react';
 import { FoodItem } from '@/types/food-item';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
+import { toSafeImageUrl } from '@/lib/utils';
 
 const TinderCard = dynamic(() => import('react-tinder-card'), { ssr: false });
 
@@ -45,16 +46,7 @@ export default function SwipeCard({ item, onSwipe, isActive, index, onSuggest, s
     }
   };
 
-  // Fallback for badly formatted URLs already in the DB
-  const safeImageUrl = (() => {
-    try {
-      new URL(item.imageUrl);
-      return item.imageUrl;
-    } catch {
-      if (item.imageUrl?.startsWith('/')) return item.imageUrl;
-      return 'https://placehold.co/400x600/1a1a1a/666?text=No+Image';
-    }
-  })();
+  const safeImageUrl = toSafeImageUrl(item.imageUrl, 'https://placehold.co/400x600/1a1a1a/666?text=No+Image');
 
   const scale = 1 - (index * 0.05);
   const translateY = index * 20;
@@ -82,6 +74,7 @@ export default function SwipeCard({ item, onSwipe, isActive, index, onSuggest, s
             alt={item.name}
             fill
             sizes="(max-width: 768px) 100vw, 420px"
+            unoptimized
             className="w-full h-full object-cover"
           />
           {/* Gradient from bottom (dark) to top (transparent) */}

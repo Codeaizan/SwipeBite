@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Share2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, toSafeImageUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   useTrends,
@@ -16,19 +16,6 @@ import {
   RankedTrendItem,
   CampusMood,
 } from '@/hooks/use-trends';
-
-function safeImageUrl(src: string): string {
-  if (!src) return 'https://placehold.co/400x400/1a1a1a/666?text=No+Image';
-  if (src.startsWith('/')) return src;
-  try {
-    const parsed = new URL(src);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-      ? src
-      : 'https://placehold.co/400x400/1a1a1a/666?text=No+Image';
-  } catch {
-    return 'https://placehold.co/400x400/1a1a1a/666?text=No+Image';
-  }
-}
 
 // ────────────────────────────────────────────
 // Sub-components
@@ -184,10 +171,11 @@ function RankingItem({
       {/* Thumbnail */}
       <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
         <Image
-          src={safeImageUrl(item.imageUrl)}
+          src={toSafeImageUrl(item.imageUrl)}
           alt={item.name}
           width={48}
           height={48}
+          unoptimized
           className="w-full h-full object-cover"
         />
       </div>

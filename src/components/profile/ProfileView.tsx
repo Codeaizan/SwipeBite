@@ -8,9 +8,9 @@ import { FoodItem } from '@/types/food-item';
 import { SwipeDoc, FeedbackDoc } from '@/types/firestore';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, toSafeImageUrl } from '@/lib/utils';
 import { useUser, useFirestore, useAuth, useCollection } from '@/firebase';
-import { collection, query, where, limit, orderBy, doc, setDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, where, limit, doc, setDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { QUERY_LIMITS } from '@/lib/query-limits';
 import { toast } from '@/hooks/use-toast';
@@ -30,7 +30,7 @@ export default function ProfileView() {
 
   const swipesQuery = useMemo(() => {
     if (!db || !user) return null;
-    return query(collection(db, 'swipes'), where('userId', '==', user.uid), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.userSwipes));
+    return query(collection(db, 'swipes'), where('userId', '==', user.uid), limit(QUERY_LIMITS.userSwipes));
   }, [db, user]);
 
   const itemsQuery = useMemo(() => {
@@ -46,6 +46,19 @@ export default function ProfileView() {
   const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
   const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
   const { data: userFeedback = [] } = useCollection<FeedbackDoc>(feedbackQuery);
+
+  const sortedSwipes = useMemo(() => {
+    const toMs = (value: unknown) => {
+      const stamp = value as any;
+      if (!stamp) return 0;
+      if (typeof stamp.toMillis === 'function') return stamp.toMillis();
+      if (typeof stamp.seconds === 'number') return stamp.seconds * 1000;
+      if (typeof stamp.toDate === 'function') return stamp.toDate().getTime();
+      const t = new Date(stamp).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    return [...swipes].sort((a, b) => toMs(b.timestamp) - toMs(a.timestamp));
+  }, [swipes]);
 
   useEffect(() => {
     try { setVegOnly(localStorage.getItem('vegOnlyMode') === 'true'); } catch { setVegOnly(false); }
@@ -70,7 +83,7 @@ export default function ProfileView() {
 
   const likedItems = useMemo(() => {
     const seen = new Set<string>();
-    return swipes
+    return sortedSwipes
       .filter(s => s.direction === 'right' && !seen.has(s.itemId) && !!seen.add(s.itemId))
       .map(s => itemsMap.get(s.itemId))
       .filter(item => {
@@ -78,11 +91,11 @@ export default function ProfileView() {
         if (vegOnly && !item.isVeg) return false;
         return true;
       }) as FoodItem[];
-  }, [swipes, itemsMap, vegOnly]);
+  }, [sortedSwipes, itemsMap, vegOnly]);
 
   const dislikedItems = useMemo(() => {
     const seen = new Set<string>();
-    return swipes
+    return sortedSwipes
       .filter(s => s.direction === 'left' && !seen.has(s.itemId) && !!seen.add(s.itemId))
       .map(s => itemsMap.get(s.itemId))
       .filter(item => {
@@ -90,7 +103,7 @@ export default function ProfileView() {
         if (vegOnly && !item.isVeg) return false;
         return true;
       }) as FoodItem[];
-  }, [swipes, itemsMap, vegOnly]);
+  }, [sortedSwipes, itemsMap, vegOnly]);
 
   const stats = useMemo(() => ({
     total: swipes.length,
@@ -270,8 +283,9 @@ export default function ProfileView() {
                   whileTap={{ scale: 0.97 }}
                 >
                   <div className="h-24 w-full relative">
-                    <Image src={item.imageUrl} alt={item.name} fill
+                    <Image src={toSafeImageUrl(item.imageUrl)} alt={item.name} fill
                       sizes="(max-width: 768px) 50vw, 240px"
+                      unoptimized
                       className="w-full h-full object-cover opacity-80" />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent" />
                     <div className={cn(

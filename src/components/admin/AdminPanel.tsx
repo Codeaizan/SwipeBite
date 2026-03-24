@@ -14,7 +14,7 @@ import { KioskDoc, SwipeDoc, SuggestionDoc, PollDoc, FeedbackDoc } from '@/types
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { cn } from '@/lib/utils';
+import { cn, toSafeImageUrl } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useDoc } from '@/firebase';
 import { QUERY_LIMITS } from '@/lib/query-limits';
@@ -187,9 +187,10 @@ function ItemsTab({ items, kiosk, kioskLocation, db }: { items: KioskItem[]; kio
             >
               <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
                 <Image
-                  src={item.imageUrl}
+                  src={toSafeImageUrl(item.imageUrl)}
                   width={56}
                   height={56}
+                  unoptimized
                   className="w-full h-full object-cover"
                   alt={item.name}
                 />
