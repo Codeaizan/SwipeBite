@@ -120,9 +120,17 @@ export function useTrends(
     () => db ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
     [db],
   );
+  // Fallback for legacy datasets where many swipe docs may not have timestamp indexed/populated.
+  const fallbackSwipesQuery = useMemo(
+    () => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    [db],
+  );
 
   const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
-  const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
+  const { data: orderedSwipes = [], loading: orderedSwipesLoading } = useCollection<SwipeDoc>(swipesQuery);
+  const { data: fallbackSwipes = [], loading: fallbackSwipesLoading } = useCollection<SwipeDoc>(fallbackSwipesQuery);
+
+  const swipes = orderedSwipes.length > 0 ? orderedSwipes : fallbackSwipes;
 
   const items = useMemo(() => {
     try {
@@ -136,8 +144,9 @@ export function useTrends(
     return itemsData;
   }, [itemsData]);
 
-  const loading = itemsLoading || swipesLoading;
-  const hasAnyData = items.length > 0 && swipes.length > 0;
+  const loading = itemsLoading || orderedSwipesLoading || (orderedSwipes.length === 0 && fallbackSwipesLoading);
+  // Empty-state should reflect actual dataset availability, not local veg filter preference.
+  const hasAnyData = itemsData.length > 0 && swipes.length > 0;
 
   const now = Date.now();
   const periodMs = useMemo(() => {
