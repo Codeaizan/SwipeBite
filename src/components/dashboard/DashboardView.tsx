@@ -13,7 +13,8 @@ import { QUERY_LIMITS } from '@/lib/query-limits';
 export default function DashboardView() {
   const db = useFirestore();
   const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), limit(QUERY_LIMITS.items)) : null, [db]);
-  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.dashboardSwipes)) : null, [db]);
+  // NOTE: Removed orderBy('timestamp') - requires composite index that may not be created
+  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.dashboardSwipes)) : null, [db]);
 
   const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
   const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { collection, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser } from '@/firebase';
 import { FoodItem } from '@/types/food-item';
 import { SwipeDoc } from '@/types/firestore';
@@ -119,11 +119,13 @@ export function useTrends(
   );
   // Swipes queries fetch ALL swipes from all users (no userId filter)
   // Must wait for user auth to complete (Firestore rules require isSignedIn())
+  // NOTE: Removed orderBy('timestamp') - requires composite index that may not be created.
+  // Just use limit() instead; frontend sorts data as needed.
   const swipesQuery = useMemo(
-    () => (db && user) ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
     [db, user],
   );
-  // Fallback for legacy datasets where many swipe docs may not have timestamp indexed/populated.
+  // Fallback query - same as primary (no need for separate fallback now)
   const fallbackSwipesQuery = useMemo(
     () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
     [db, user],
@@ -131,20 +133,17 @@ export function useTrends(
 
   const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
   const { data: orderedSwipes = [], loading: orderedSwipesLoading, error: orderedSwipesError } = useCollection<SwipeDoc>(swipesQuery);
-  const { data: fallbackSwipes = [], loading: fallbackSwipesLoading } = useCollection<SwipeDoc>(fallbackSwipesQuery);
+  const { data: fallbackSwipes = [] } = useCollection<SwipeDoc>(fallbackSwipesQuery);
 
-  // Use primary (ordered) query if successful. If ordered query returns no data (either empty DB or error),
-  // fall back to simple query without orderBy to handle cases where timestamp field may not be indexed
-  const swipes = (orderedSwipes.length > 0) ? orderedSwipes : fallbackSwipes;
+  // Use primary query for fetching swipes
+  const swipes = orderedSwipes.length > 0 ? orderedSwipes : fallbackSwipes;
   
   // Debug logging
   if (process.env.NODE_ENV === 'development') {
     console.log('[useTrends] Swipes data:', {
-      orderedSwipesCount: orderedSwipes.length,
-      fallbackSwipesCount: fallbackSwipes.length,
-      totalSwipesUsed: swipes.length,
-      orderedSwipesError: orderedSwipesError?.message,
+      swipesCount: swipes.length,
       itemsCount: itemsData.length,
+      loading: orderedSwipesLoading,
     });
   }
 
@@ -160,7 +159,7 @@ export function useTrends(
     return itemsData;
   }, [itemsData]);
 
-  const loading = authLoading || itemsLoading || (orderedSwipesLoading && fallbackSwipesLoading);
+  const loading = authLoading || itemsLoading || orderedSwipesLoading;
   // Empty-state should reflect actual dataset availability, not local veg filter preference.
   const hasAnyData = itemsData.length > 0 && swipes.length > 0;
 

@@ -32,7 +32,8 @@ export default function AdminPanel({ kiosk, onLogout }: { kiosk: string; onLogou
   const kioskLocation = kioskDoc?.location || '';
 
   const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), where('kiosk', '==', kiosk), limit(QUERY_LIMITS.items)) : null, [db, kiosk]);
-  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.swipes)) : null, [db]);
+  // NOTE: Removed orderBy('timestamp') - requires composite index that may not be created
+  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.swipes)) : null, [db]);
 
   const { data: kioskItems = [], loading: itemsLoading } = useCollection<KioskItem>(itemsQuery);
   const { data: allSwipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
