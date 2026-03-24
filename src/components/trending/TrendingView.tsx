@@ -17,6 +17,19 @@ import {
   CampusMood,
 } from '@/hooks/use-trends';
 
+function safeImageUrl(src: string): string {
+  if (!src) return 'https://placehold.co/400x400/1a1a1a/666?text=No+Image';
+  if (src.startsWith('/')) return src;
+  try {
+    const parsed = new URL(src);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+      ? src
+      : 'https://placehold.co/400x400/1a1a1a/666?text=No+Image';
+  } catch {
+    return 'https://placehold.co/400x400/1a1a1a/666?text=No+Image';
+  }
+}
+
 // ────────────────────────────────────────────
 // Sub-components
 // ────────────────────────────────────────────
@@ -171,7 +184,7 @@ function RankingItem({
       {/* Thumbnail */}
       <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
         <Image
-          src={item.imageUrl}
+          src={safeImageUrl(item.imageUrl)}
           alt={item.name}
           width={48}
           height={48}
@@ -312,10 +325,6 @@ export default function TrendingView() {
     cuisineFilter,
     priceFilter,
   );
-
-  if (typeof window !== 'undefined') {
-    console.log('[TrendingView] State:', { loading, hasAnyData, rankedItemsCount: rankedItems.length });
-  }
 
   const priceLabels = PRICE_FILTERS.map(p => p.label);
 

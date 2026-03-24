@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, X, RotateCcw, ArrowBigUpDash, MessageSquarePlus, Send, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCollection, useFirestore, useUser } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import SwipeCard from './SwipeCard';
 import { Button } from '@/components/ui/button';
 import { FoodItem } from '@/types/food-item';
@@ -35,7 +35,6 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     return (db && user) ? query(
       collection(db, 'suggestions'), 
       where('userId', '==', user.uid), 
-      orderBy('createdAt', 'desc'), 
       limit(1)
     ) : null;
   }, [db, user]);
@@ -44,7 +43,17 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
 
   const canSuggest = useMemo(() => {
     if (!latestSuggestions || latestSuggestions.length === 0) return true;
-    const last = latestSuggestions[0];
+    const parseMs = (value: unknown): number => {
+      const stamp = value as any;
+      if (!stamp) return 0;
+      if (typeof stamp.toMillis === 'function') return stamp.toMillis();
+      if (typeof stamp.seconds === 'number') return stamp.seconds * 1000;
+      if (typeof stamp.toDate === 'function') return stamp.toDate().getTime();
+      const d = new Date(stamp).getTime();
+      return Number.isFinite(d) ? d : 0;
+    };
+
+    const last = [...latestSuggestions].sort((a, b) => parseMs(b.createdAt) - parseMs(a.createdAt))[0];
     if (!last.createdAt) return false; // Pending write
     const stamp = last.createdAt as any;
     const lastTime = typeof stamp.toMillis === 'function'
@@ -98,7 +107,6 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     return query(
       collection(db, 'swipes'),
       where('userId', '==', user.uid),
-      orderBy('timestamp', 'desc'),
       limit(QUERY_LIMITS.userSwipes)
     );
   }, [db, user]);
