@@ -313,6 +313,10 @@ export default function TrendingView() {
     priceFilter,
   );
 
+  if (typeof window !== 'undefined') {
+    console.log('[TrendingView] State:', { loading, hasAnyData, rankedItemsCount: rankedItems.length });
+  }
+
   const priceLabels = PRICE_FILTERS.map(p => p.label);
 
   const handlePriceChange = useCallback((v: string) => {

@@ -127,11 +127,27 @@ export function useTrends(
     [db, user],
   );
 
-  const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
-  const { data: orderedSwipes = [], loading: orderedSwipesLoading } = useCollection<SwipeDoc>(swipesQuery);
-  const { data: fallbackSwipes = [], loading: fallbackSwipesLoading } = useCollection<SwipeDoc>(fallbackSwipesQuery);
+  const { data: itemsData = [], loading: itemsLoading, error: itemsError } = useCollection<FoodItem>(itemsQuery);
+  const { data: orderedSwipes = [], loading: orderedSwipesLoading, error: orderedSwipesError } = useCollection<SwipeDoc>(swipesQuery);
+  const { data: fallbackSwipes = [], loading: fallbackSwipesLoading, error: fallbackSwipesError } = useCollection<SwipeDoc>(fallbackSwipesQuery);
 
   const swipes = orderedSwipes.length > 0 ? orderedSwipes : fallbackSwipes;
+
+  // Debug log on refresh
+  if (typeof window !== 'undefined') {
+    console.log('[useTrends] Data state:', {
+      authLoading,
+      user: user?.uid,
+      itemsData: itemsData.length,
+      orderedSwipes: orderedSwipes.length,
+      fallbackSwipes: fallbackSwipes.length,
+      swipes: swipes.length,
+      itemsError: itemsError?.message,
+      orderedSwipesError: orderedSwipesError?.message,
+      fallbackSwipesError: fallbackSwipesError?.message,
+      hasAnyData: itemsData.length > 0 && swipes.length > 0,
+    });
+  }
 
   const items = useMemo(() => {
     try {
