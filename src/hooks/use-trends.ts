@@ -117,25 +117,36 @@ export function useTrends(
     () => (db && user) ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null,
     [db, user],
   );
-  // Note: Swipes queries do NOT filter by userId - they fetch ALL swipes from all users
-  // Users must be signed in to read due to Firestore rules, but there's no per-user filter
+  // Swipes queries fetch ALL swipes from all users (no userId filter)
+  // Must wait for user auth to complete (Firestore rules require isSignedIn())
   const swipesQuery = useMemo(
-    () => db ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db],
+    () => (db && user) ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    [db, user],
   );
   // Fallback for legacy datasets where many swipe docs may not have timestamp indexed/populated.
   const fallbackSwipesQuery = useMemo(
-    () => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db],
+    () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    [db, user],
   );
 
   const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
-  const { data: orderedSwipes = [], loading: orderedSwipesLoading } = useCollection<SwipeDoc>(swipesQuery);
+  const { data: orderedSwipes = [], loading: orderedSwipesLoading, error: orderedSwipesError } = useCollection<SwipeDoc>(swipesQuery);
   const { data: fallbackSwipes = [], loading: fallbackSwipesLoading } = useCollection<SwipeDoc>(fallbackSwipesQuery);
 
   // Use primary (ordered) query if successful. If ordered query returns no data (either empty DB or error),
   // fall back to simple query without orderBy to handle cases where timestamp field may not be indexed
   const swipes = (orderedSwipes.length > 0) ? orderedSwipes : fallbackSwipes;
+  
+  // Debug logging
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[useTrends] Swipes data:', {
+      orderedSwipesCount: orderedSwipes.length,
+      fallbackSwipesCount: fallbackSwipes.length,
+      totalSwipesUsed: swipes.length,
+      orderedSwipesError: orderedSwipesError?.message,
+      itemsCount: itemsData.length,
+    });
+  }
 
   const items = useMemo(() => {
     try {
@@ -198,6 +209,11 @@ export function useTrends(
       const likes = itemSwipes.filter(s => s.direction === 'right').length;
       const wantToTry = itemSwipes.filter(s => s.direction === 'up').length;
       const likeRate = totalSwipes > 0 ? (likes / totalSwipes) * 100 : 0;
+      
+      // Debug: Log items with swipes
+      if (process.env.NODE_ENV === 'development' && totalSwipes > 0) {
+        console.log(`[useTrends] Item "${item.name}": ${totalSwipes} swipes (${likes} likes, ${wantToTry} try-laters)`, itemSwipes);
+      }
 
       const rankMovement =
         timePeriod === 'daily' ? null : getRankMovement(item.id, timePeriod);
