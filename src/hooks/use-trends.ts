@@ -169,16 +169,23 @@ export function useTrends(
         if (!s.timestamp) return true; // optimistic/pending writes
         
         let ts = 0;
-        const stamp = s.timestamp as any;
-        if (typeof stamp.toMillis === 'function') {
-          ts = stamp.toMillis();
-        } else if (typeof stamp.seconds === 'number') {
-          ts = stamp.seconds * 1000;
-        } else if (typeof stamp.toDate === 'function') {
-          ts = stamp.toDate().getTime();
-        } else {
-          ts = new Date(stamp).getTime();
+        try {
+          const stamp = s.timestamp as any;
+          if (typeof stamp.toMillis === 'function') {
+            ts = stamp.toMillis();
+          } else if (typeof stamp.seconds === 'number') {
+            ts = stamp.seconds * 1000;
+          } else if (typeof stamp.toDate === 'function') {
+            ts = stamp.toDate().getTime();
+          } else {
+            ts = new Date(stamp).getTime();
+          }
+        } catch {
+          // If parsing fails for any reason, treat as valid recent swipe to avoid filtering out
+          return true;
         }
+
+        if (isNaN(ts) || ts === 0) return true; // Safety valve for bad timestamps
 
         return (now - ts) <= periodMs;
       });
