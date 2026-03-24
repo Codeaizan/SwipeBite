@@ -67,7 +67,7 @@ service cloud.firestore {
     }
 
     match /swipes/{swipeId} {
-      allow read: if isSuperAdmin() || isKioskOwner() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }

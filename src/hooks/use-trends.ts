@@ -139,13 +139,12 @@ export function useTrends(
   const loading = itemsLoading || swipesLoading;
   const hasAnyData = items.length > 0 && swipes.length > 0;
 
-  // Add deterministic per-period randomization to swipe counts
-  // so Daily / Weekly / Monthly feel distinct
-  const periodMultiplier = useMemo(() => {
+  const now = Date.now();
+  const periodMs = useMemo(() => {
     switch (timePeriod) {
-      case 'daily': return 0.3;
-      case 'weekly': return 0.7;
-      case 'monthly': return 1.0;
+      case 'daily': return 24 * 60 * 60 * 1000;
+      case 'weekly': return 7 * 24 * 60 * 60 * 1000;
+      case 'monthly': return 30 * 24 * 60 * 60 * 1000;
     }
   }, [timePeriod]);
 
@@ -155,19 +154,19 @@ export function useTrends(
 
     return items.map(item => {
       const cuisine = assignCuisine(item);
-      const itemSwipes = swipes.filter(s => s.itemId === item.id);
+      const itemSwipes = swipes.filter(s => {
+        if (s.itemId !== item.id) return false;
+        if (!s.timestamp) return true; // optimistic/pending writes
+        const ts = typeof (s.timestamp as any).toMillis === 'function' 
+          ? (s.timestamp as any).toMillis() 
+          : new Date(s.timestamp as any).getTime();
+        return (now - ts) <= periodMs;
+      });
 
-      // Apply per-period variation so tabs look different
-      const periodSeed = hashString(item.id + timePeriod);
-      const variation = 0.8 + ((periodSeed % 40) / 100); // 0.80 - 1.19
-      const scaledTotal = Math.max(1, Math.round(itemSwipes.length * periodMultiplier * variation));
-      const scaledLikes = Math.round(
-        itemSwipes.filter(s => s.direction === 'right').length * periodMultiplier * variation,
-      );
-      const scaledWants = Math.round(
-        itemSwipes.filter(s => s.direction === 'up').length * periodMultiplier * variation,
-      );
-      const likeRate = scaledTotal > 0 ? (scaledLikes / scaledTotal) * 100 : 0;
+      const totalSwipes = itemSwipes.length;
+      const likes = itemSwipes.filter(s => s.direction === 'right').length;
+      const wantToTry = itemSwipes.filter(s => s.direction === 'up').length;
+      const likeRate = totalSwipes > 0 ? (likes / totalSwipes) * 100 : 0;
 
       const rankMovement =
         timePeriod === 'daily' ? null : getRankMovement(item.id, timePeriod);
@@ -175,14 +174,14 @@ export function useTrends(
       return {
         ...item,
         cuisine,
-        likes: scaledLikes,
-        wantToTry: scaledWants,
-        totalSwipes: scaledTotal,
+        likes,
+        wantToTry,
+        totalSwipes,
         likeRate,
         rankMovement,
       };
     }).sort((a, b) => b.likeRate - a.likeRate);
-  }, [items, swipes, timePeriod, periodMultiplier, hasAnyData]);
+  }, [items, swipes, timePeriod, periodMs, hasAnyData]);
 
   // Apply filters
   const rankedItems = useMemo<RankedTrendItem[]>(() => {
