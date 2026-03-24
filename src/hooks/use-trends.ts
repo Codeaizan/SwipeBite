@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { collection, query, where, limit, orderBy } from 'firebase/firestore';
-import { useFirestore, useCollection } from '@/firebase';
+import { useFirestore, useCollection, useUser } from '@/firebase';
 import { FoodItem } from '@/types/food-item';
 import { SwipeDoc } from '@/types/firestore';
 import { QUERY_LIMITS } from '@/lib/query-limits';
@@ -111,19 +111,20 @@ export function useTrends(
   priceFilter: PriceFilter,
 ): UseTrendsResult {
   const db = useFirestore();
+  const { user, loading: authLoading } = useUser();
 
   const itemsQuery = useMemo(
-    () => db ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null,
-    [db],
+    () => (db && user) ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null,
+    [db, user],
   );
   const swipesQuery = useMemo(
-    () => db ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db],
+    () => (db && user) ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    [db, user],
   );
   // Fallback for legacy datasets where many swipe docs may not have timestamp indexed/populated.
   const fallbackSwipesQuery = useMemo(
-    () => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db],
+    () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    [db, user],
   );
 
   const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
@@ -144,7 +145,7 @@ export function useTrends(
     return itemsData;
   }, [itemsData]);
 
-  const loading = itemsLoading || orderedSwipesLoading || (orderedSwipes.length === 0 && fallbackSwipesLoading);
+  const loading = authLoading || itemsLoading || orderedSwipesLoading || (orderedSwipes.length === 0 && fallbackSwipesLoading);
   // Empty-state should reflect actual dataset availability, not local veg filter preference.
   const hasAnyData = itemsData.length > 0 && swipes.length > 0;
 
