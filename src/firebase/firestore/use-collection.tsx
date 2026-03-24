@@ -1,64 +1,105 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { Query, onSnapshot, DocumentData, queryEqual } from 'firebase/firestore';
 
-export function useCollection<T extends DocumentData = DocumentData>(query: Query<DocumentData> | null) {
+export function useCollection<T extends DocumentData = DocumentData>(
+  query: Query<DocumentData> | null
+) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const warnedPermissionRef = useRef(false);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null); // ← ref not local var
 
-  // Stabilize the query reference: only update when the query actually changes
   const queryRef = useRef(query);
+  const hadErrorRef = useRef(false);
+
   if (
     query !== queryRef.current &&
-    !(query && queryRef.current && queryEqual(query, queryRef.current))
+    !(
+      query &&
+      queryRef.current &&
+      !hadErrorRef.current &&
+      queryEqual(query, queryRef.current)
+    )
   ) {
     queryRef.current = query;
+    hadErrorRef.current = false;
   }
   const stableQuery = queryRef.current;
 
   useEffect(() => {
+    // Always clear pending retry and existing listener on re-run
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
     if (!stableQuery) {
-      warnedPermissionRef.current = false;
+      hadErrorRef.current = false;
       setData([]);
       setLoading(false);
       setError(null);
       return;
     }
 
-    warnedPermissionRef.current = false;
     setLoading(true);
     setError(null);
 
-    const unsubscribe = onSnapshot(
-      stableQuery,
-      (snapshot) => {
-        const items = snapshot.docs.map((doc) => ({
-          ...doc.data(),
-          id: doc.id,
-        })) as unknown as T[];
-        setData(items);
-        setLoading(false);
-      },
-      async (err) => {
-        if (err.code === 'permission-denied') {
-          if (!warnedPermissionRef.current) {
-            console.warn('Firestore permission denied for query. The user may not have access to these documents yet.');
-            warnedPermissionRef.current = true;
-          }
-        } else {
-          console.warn('Firestore query error:', err.code, err.message);
-        }
-        setError(err);
-        setLoading(false);
+    function startListener() {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
-    );
 
+      // Store in ref so cleanup always finds it
+      unsubscribeRef.current = onSnapshot(
+        stableQuery!,
+        (snapshot) => {
+          hadErrorRef.current = false;
+          const items = snapshot.docs.map((doc) => ({
+            ...doc.data(),
+            id: doc.id,
+          })) as unknown as T[];
+          setData(items);
+          setLoading(false);
+        },
+        (err) => {
+          if (err.code === 'permission-denied') {
+            // Silently retry — auth token hasn't propagated yet
+            hadErrorRef.current = true;
+            retryTimeoutRef.current = setTimeout(() => {
+              retryTimeoutRef.current = null;
+              hadErrorRef.current = false;
+              startListener();
+            }, 600);
+          } else {
+            hadErrorRef.current = true;
+            console.warn('Firestore query error:', err.code, err.message);
+            setError(err);
+            setLoading(false);
+          }
+        }
+      );
+    }
+
+    startListener();
+
+    // Cleanup always catches the listener via ref
     return () => {
-      unsubscribe();
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
     };
   }, [stableQuery]);
 

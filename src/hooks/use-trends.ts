@@ -49,7 +49,6 @@ export type PriceFilter = (typeof PRICE_FILTERS)[number]['label'];
 // Deterministic helpers
 // ────────────────────────────────────────────
 
-/** Simple hash from a string to a number. */
 function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -58,20 +57,15 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
-/** Assign a cuisine category deterministically based on item ID. */
 function assignCuisine(item: FoodItem): string {
   if (item.cuisine) return item.cuisine;
   const cats = CUISINE_CATEGORIES.filter(c => c !== 'All');
   return cats[hashString(item.id) % cats.length];
 }
 
-/**
- * Generate a seeded rank movement value for a given item + period.
- * Returns a value between -4 and +4 (0 means unchanged).
- */
 function getRankMovement(itemId: string, period: 'weekly' | 'monthly'): number {
   const seed = hashString(itemId + period);
-  const range = 9; // -4 to +4
+  const range = 9;
   return (seed % range) - 4;
 }
 
@@ -85,7 +79,7 @@ export interface RankedTrendItem extends FoodItem {
   wantToTry: number;
   totalSwipes: number;
   likeRate: number;
-  rankMovement: number | null; // null for daily
+  rankMovement: number | null;
 }
 
 export interface CampusMood {
@@ -113,22 +107,35 @@ export function useTrends(
   const db = useFirestore();
   const { user, loading: authLoading } = useUser();
 
+  // ─── FIX 1: Query construction only depends on db, not user ───
+  // Removing 'user' from deps prevents the query object from being
+  // recreated on every auth state change, which was causing the
+  // useCollection queryEqual check to block listener restarts.
   const itemsQuery = useMemo(
-    () => (db && user) ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null,
-    [db, user],
-  );
-  // Fetch ALL swipes from all users (no userId filter)
-  // Removed orderBy('timestamp') - requires composite index that may not exist
-  // Removed fallback query - single simple query is more reliable
-  const swipesQuery = useMemo(
-    () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db, user],
+    () => db
+      ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items))
+      : null,
+    [db], // ← removed 'user'
   );
 
-  const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
-  const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
-  
-  // Debug logging
+  const swipesQuery = useMemo(
+    () => db
+      ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes))
+      : null,
+    [db], // ← removed 'user'
+  );
+
+  // ─── FIX 2: Auth guard moved here, not inside query construction ───
+  // Pass null to useCollection until auth is fully resolved.
+  // This prevents the permission-denied error that killed the listener
+  // before Fix 1 stabilized the query reference.
+  const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(
+    !authLoading && user ? itemsQuery : null
+  );
+  const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(
+    !authLoading && user ? swipesQuery : null
+  );
+
   if (process.env.NODE_ENV === 'development') {
     console.log('[useTrends] Swipes data:', {
       swipesCount: swipes.length,
@@ -150,7 +157,6 @@ export function useTrends(
   }, [itemsData]);
 
   const loading = authLoading || itemsLoading || swipesLoading;
-  // Empty-state should reflect actual dataset availability, not local veg filter preference.
   const hasAnyData = itemsData.length > 0 && swipes.length > 0;
 
   const now = Date.now();
@@ -162,7 +168,6 @@ export function useTrends(
     }
   }, [timePeriod]);
 
-  // Build ranked items
   const allRankedItems = useMemo<RankedTrendItem[]>(() => {
     if (!hasAnyData) return [];
 
@@ -170,8 +175,8 @@ export function useTrends(
       const cuisine = assignCuisine(item);
       const itemSwipes = swipes.filter(s => {
         if (s.itemId !== item.id) return false;
-        if (!s.timestamp) return true; // optimistic/pending writes
-        
+        if (!s.timestamp) return true;
+
         let ts = 0;
         try {
           const stamp = s.timestamp as any;
@@ -185,12 +190,10 @@ export function useTrends(
             ts = new Date(stamp).getTime();
           }
         } catch {
-          // If parsing fails for any reason, treat as valid recent swipe to avoid filtering out
           return true;
         }
 
-        if (isNaN(ts) || ts === 0) return true; // Safety valve for bad timestamps
-
+        if (isNaN(ts) || ts === 0) return true;
         return (now - ts) <= periodMs;
       });
 
@@ -198,8 +201,7 @@ export function useTrends(
       const likes = itemSwipes.filter(s => s.direction === 'right').length;
       const wantToTry = itemSwipes.filter(s => s.direction === 'up').length;
       const likeRate = totalSwipes > 0 ? (likes / totalSwipes) * 100 : 0;
-      
-      // Debug: Log items with swipes
+
       if (process.env.NODE_ENV === 'development' && totalSwipes > 0) {
         console.log(`[useTrends] Item "${item.name}": ${totalSwipes} swipes (${likes} likes, ${wantToTry} try-laters)`, itemSwipes);
       }
@@ -219,7 +221,6 @@ export function useTrends(
     }).sort((a, b) => b.likeRate - a.likeRate);
   }, [items, swipes, timePeriod, periodMs, hasAnyData, now]);
 
-  // Apply filters
   const rankedItems = useMemo<RankedTrendItem[]>(() => {
     let filtered = allRankedItems;
 
@@ -235,7 +236,6 @@ export function useTrends(
     return filtered;
   }, [allRankedItems, cuisineFilter, priceFilter]);
 
-  // Campus mood — top cuisine by total swipes (only for weekly/monthly)
   const campusMood = useMemo<CampusMood | null>(() => {
     if (timePeriod === 'daily' || !hasAnyData) return null;
 

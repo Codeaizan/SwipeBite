@@ -1,8 +1,6 @@
-
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import AppContainer from '@/components/layout/AppContainer';
 import BottomNav from '@/components/layout/BottomNav';
@@ -51,13 +49,13 @@ export default function Home() {
   };
 
   const handleBack = () => {
-    // Sign out if they were mid-auth and go back to role selector
     if (user) {
       auth && signOut(auth);
     }
     setSelectedRole('none');
   };
 
+  // ── Loading state ──
   if (!isClient || loading) {
     return (
       <div className="fixed inset-0 bg-[#0f0f0f] flex items-center justify-center">
@@ -82,7 +80,7 @@ export default function Home() {
     );
   }
 
-  // ── Authenticated but no role doc (shouldn't happen normally) ──
+  // ── Authenticated but no role doc ──
   if (!roleData) {
     return (
       <div className="fixed inset-0 bg-[#0f0f0f] flex flex-col items-center justify-center p-8 text-center">
@@ -115,36 +113,56 @@ export default function Home() {
   // ── Student ──
   return (
     <AppContainer>
-      {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
-      
+      {showOnboarding && (
+        <Onboarding onComplete={() => setShowOnboarding(false)} />
+      )}
+
       <InstallSystem />
 
       <main className="flex-1 flex flex-col overflow-y-auto min-h-0 relative">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="flex-1 flex flex-col min-h-0"
-          >
-            {activeTab === 'home' && (
-              <>
-                <PollBanner />
-                <SwipeView onSwipeUpdate={handleSwipeUpdate} />
-              </>
-            )}
-            {activeTab === 'trending' && <TrendingView />}
-            {activeTab === 'dashboard' && <DashboardView />}
-            {activeTab === 'profile' && <ProfileView />}
-          </motion.div>
-        </AnimatePresence>
+
+        {/* HOME — always mounted */}
+        <div className={
+          activeTab === 'home'
+            ? 'flex flex-col flex-1 min-h-0 animate-tabfade'
+            : 'hidden'
+        }>
+          <PollBanner />
+          <SwipeView onSwipeUpdate={handleSwipeUpdate} />
+        </div>
+
+        {/* TRENDING — always mounted, listener stays alive */}
+        <div className={
+          activeTab === 'trending'
+            ? 'flex flex-col flex-1 min-h-0 animate-tabfade'
+            : 'hidden'
+        }>
+          <TrendingView />
+        </div>
+
+        {/* DASHBOARD — always mounted */}
+        <div className={
+          activeTab === 'dashboard'
+            ? 'flex flex-col flex-1 min-h-0 animate-tabfade'
+            : 'hidden'
+        }>
+          <DashboardView />
+        </div>
+
+        {/* PROFILE — always mounted */}
+        <div className={
+          activeTab === 'profile'
+            ? 'flex flex-col flex-1 min-h-0 animate-tabfade'
+            : 'hidden'
+        }>
+          <ProfileView />
+        </div>
+
       </main>
 
-      <BottomNav 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+      <BottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         unseenCount={unseenCount}
       />
     </AppContainer>
