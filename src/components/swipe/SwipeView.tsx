@@ -26,8 +26,8 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
 
   const { data: configRows } = useCollection<GlobalConfigDoc>(useMemo(() => {
-    return db ? query(collection(db, 'config')) : null;
-  }, [db]));
+    return db && user ? query(collection(db, 'config')) : null;
+  }, [db, user]));
   const charLimit = configRows?.find(c => c.id === 'globals')?.suggestionCharLimit || 150;
 
   // Rate Limiting Logic
@@ -93,13 +93,13 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   };
 
   const itemsQuery = useMemo(() => {
-    if (!db) return null;
+    if (!db || !user) return null;
     return query(
       collection(db, 'items'),
       where('isAvailable', '==', true),
       limit(QUERY_LIMITS.items)
     );
-  }, [db]);
+  }, [db, user]);
 
   // Fetch user's existing swipes to filter out already-swiped items
   const userSwipesQuery = useMemo(() => {

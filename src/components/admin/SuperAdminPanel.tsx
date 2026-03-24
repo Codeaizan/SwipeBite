@@ -8,7 +8,7 @@ import {
   BarChart3, Send, StopCircle, ChevronDown, ChevronUp, Crown, MessageSquare
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
-import { useFirestore, useCollection } from '@/firebase';
+import { useFirestore, useCollection, useUser } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, limit, getDocs, where, writeBatch, orderBy } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
@@ -29,11 +29,12 @@ interface ItemDoc {
 
 export default function SuperAdminPanel({ onLogout }: { onLogout: () => void }) {
   const db = useFirestore();
+  const { user } = useUser();
 
-  const kiosksQuery = useMemo(() => db ? query(collection(db, 'kiosks'), limit(QUERY_LIMITS.kiosks)) : null, [db]);
-  const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), limit(QUERY_LIMITS.items)) : null, [db]);
+  const kiosksQuery = useMemo(() => db && user ? query(collection(db, 'kiosks'), limit(QUERY_LIMITS.kiosks)) : null, [db, user]);
+  const itemsQuery = useMemo(() => db && user ? query(collection(db, 'items'), limit(QUERY_LIMITS.items)) : null, [db, user]);
   // NOTE: Removed orderBy('timestamp') - requires composite index that may not be created
-  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.swipes)) : null, [db]);
+  const swipesQuery = useMemo(() => db && user ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.swipes)) : null, [db, user]);
 
   const { data: kiosks = [], loading: kiosksLoading } = useCollection<KioskDoc>(kiosksQuery);
   const { data: items = [] } = useCollection<ItemDoc>(itemsQuery);
@@ -498,7 +499,8 @@ function CopyButton({ text }: { text: string }) {
 /* ─── Tabs ────────────────────────────────────────────── */
 
 function SuperSuggestionsTab({ db, kiosks, subscribedKioskNames }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[], subscribedKioskNames: string[] }) {
-  const suggestionsQuery = useMemo(() => db ? query(collection(db, 'suggestions')) : null, [db]);
+  const { user } = useUser();
+  const suggestionsQuery = useMemo(() => db && user ? query(collection(db, 'suggestions')) : null, [db, user]);
   const { data: suggestions = [], loading } = useCollection<SuggestionDoc>(suggestionsQuery);
 
   const [forwardingTo, setForwardingTo] = useState<Record<string, string[]>>({});
@@ -624,8 +626,9 @@ function SuperSuggestionsTab({ db, kiosks, subscribedKioskNames }: { db: ReturnT
 function SuperSettingsTab({ db }: { db: ReturnType<typeof useFirestore> }) {
   const [charLimit, setCharLimit] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  
-  const configQuery = useMemo(() => db ? query(collection(db, 'config'), limit(1)) : null, [db]);
+  const { user } = useUser();
+
+  const configQuery = useMemo(() => db && user ? query(collection(db, 'config'), limit(1)) : null, [db, user]);
   const { data: configs } = useCollection<GlobalConfigDoc>(configQuery);
   const globalConfig = configs?.find(c => c.id === 'globals');
 
@@ -672,7 +675,8 @@ function SuperSettingsTab({ db }: { db: ReturnType<typeof useFirestore> }) {
 /* ─── Polls Tab ──────────────────────────────────────────── */
 
 function SuperPollsTab({ db, kiosks, subscribedKioskNames }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[], subscribedKioskNames: string[] }) {
-  const pollsQuery = useMemo(() => db ? query(collection(db, 'polls'), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.polls)) : null, [db]);
+  const { user } = useUser();
+  const pollsQuery = useMemo(() => db && user ? query(collection(db, 'polls'), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.polls)) : null, [db, user]);
   const { data: polls = [], loading } = useCollection<PollDoc>(pollsQuery);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -1095,8 +1099,9 @@ function PollCard({
 function SuperFeedbackTab({ db, kiosks }: { db: ReturnType<typeof useFirestore>, kiosks: KioskDoc[] }) {
   const [selectedKiosk, setSelectedKiosk] = useState<string>('All');
   const [selectedType, setSelectedType] = useState<'All' | 'liked' | 'disliked'>('All');
+  const { user } = useUser();
 
-  const feedbackQuery = useMemo(() => db ? query(collection(db, 'feedback'), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.feedback)) : null, [db]);
+  const feedbackQuery = useMemo(() => db && user ? query(collection(db, 'feedback'), orderBy('createdAt', 'desc'), limit(QUERY_LIMITS.feedback)) : null, [db, user]);
   const { data: allFeedback = [], loading } = useCollection<FeedbackDoc>(feedbackQuery);
 
   const filtered = useMemo(() => {

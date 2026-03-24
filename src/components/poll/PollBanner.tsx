@@ -17,8 +17,8 @@ export default function PollBanner() {
 
   // Query for active poll
   const activePollQuery = useMemo(
-    () => db ? query(collection(db, 'polls'), where('status', '==', 'active'), limit(1)) : null,
-    [db]
+    () => db && user ? query(collection(db, 'polls'), where('status', '==', 'active'), limit(1)) : null,
+    [db, user]
   );
   const { data: activePolls = [], loading: pollLoading } = useCollection<PollDoc>(activePollQuery);
   const poll = activePolls[0] || null;

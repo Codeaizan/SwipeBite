@@ -4,7 +4,7 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, TrendingUp, ArrowBigUpDash, Heart } from 'lucide-react';
-import { useCollection, useFirestore } from '@/firebase';
+import { useCollection, useFirestore, useUser } from '@/firebase';
 import { collection, query, limit, orderBy } from 'firebase/firestore';
 import { FoodItem } from '@/types/food-item';
 import { SwipeDoc } from '@/types/firestore';
@@ -12,9 +12,10 @@ import { QUERY_LIMITS } from '@/lib/query-limits';
 
 export default function DashboardView() {
   const db = useFirestore();
-  const itemsQuery = useMemo(() => db ? query(collection(db, 'items'), limit(QUERY_LIMITS.items)) : null, [db]);
+  const { user } = useUser();
+  const itemsQuery = useMemo(() => db && user ? query(collection(db, 'items'), limit(QUERY_LIMITS.items)) : null, [db, user]);
   // NOTE: Removed orderBy('timestamp') - requires composite index that may not be created
-  const swipesQuery = useMemo(() => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.dashboardSwipes)) : null, [db]);
+  const swipesQuery = useMemo(() => db && user ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.dashboardSwipes)) : null, [db, user]);
 
   const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
   const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);

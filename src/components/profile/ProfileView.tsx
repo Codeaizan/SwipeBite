@@ -34,9 +34,9 @@ export default function ProfileView() {
   }, [db, user]);
 
   const itemsQuery = useMemo(() => {
-    if (!db) return null;
+    if (!db || !user) return null;
     return query(collection(db, 'items'), limit(QUERY_LIMITS.items));
-  }, [db]);
+  }, [db, user]);
 
   const feedbackQuery = useMemo(() => {
     if (!db || !user) return null;
