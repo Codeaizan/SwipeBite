@@ -46,9 +46,14 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     if (!latestSuggestions || latestSuggestions.length === 0) return true;
     const last = latestSuggestions[0];
     if (!last.createdAt) return false; // Pending write
-    const lastTime = typeof (last.createdAt as any).toMillis === 'function' 
-        ? (last.createdAt as any).toMillis() 
-        : new Date(last.createdAt as any).getTime();
+    const stamp = last.createdAt as any;
+    const lastTime = typeof stamp.toMillis === 'function'
+      ? stamp.toMillis()
+      : typeof stamp.seconds === 'number'
+        ? stamp.seconds * 1000
+        : typeof stamp.toDate === 'function'
+          ? stamp.toDate().getTime()
+          : new Date(stamp).getTime();
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
     return (Date.now() - lastTime) >= SEVEN_DAYS;
   }, [latestSuggestions]);
@@ -93,6 +98,7 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
     return query(
       collection(db, 'swipes'),
       where('userId', '==', user.uid),
+      orderBy('timestamp', 'desc'),
       limit(QUERY_LIMITS.userSwipes)
     );
   }, [db, user]);
