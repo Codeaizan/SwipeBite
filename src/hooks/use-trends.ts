@@ -131,7 +131,9 @@ export function useTrends(
   const { data: orderedSwipes = [], loading: orderedSwipesLoading } = useCollection<SwipeDoc>(swipesQuery);
   const { data: fallbackSwipes = [], loading: fallbackSwipesLoading } = useCollection<SwipeDoc>(fallbackSwipesQuery);
 
-  const swipes = orderedSwipes.length > 0 ? orderedSwipes : fallbackSwipes;
+  // Use primary (ordered) query if successful. If ordered query returns no data (either empty DB or error),
+  // fall back to simple query without orderBy to handle cases where timestamp field may not be indexed
+  const swipes = (orderedSwipes.length > 0) ? orderedSwipes : fallbackSwipes;
 
   const items = useMemo(() => {
     try {
@@ -145,7 +147,7 @@ export function useTrends(
     return itemsData;
   }, [itemsData]);
 
-  const loading = authLoading || itemsLoading || orderedSwipesLoading || (orderedSwipes.length === 0 && fallbackSwipesLoading);
+  const loading = authLoading || itemsLoading || (orderedSwipesLoading && fallbackSwipesLoading);
   // Empty-state should reflect actual dataset availability, not local veg filter preference.
   const hasAnyData = itemsData.length > 0 && swipes.length > 0;
 
