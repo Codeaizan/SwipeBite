@@ -121,8 +121,20 @@ export function useTrends(
     [db],
   );
 
-  const { data: items = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
+  const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
   const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
+
+  const items = useMemo(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const vegOnly = localStorage.getItem('vegOnlyMode') === 'true';
+        if (vegOnly) return itemsData.filter(i => i.isVeg);
+      }
+    } catch {
+      // ignore
+    }
+    return itemsData;
+  }, [itemsData]);
 
   const loading = itemsLoading || swipesLoading;
   const hasAnyData = items.length > 0 && swipes.length > 0;

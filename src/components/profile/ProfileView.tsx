@@ -73,16 +73,24 @@ export default function ProfileView() {
     return swipes
       .filter(s => s.direction === 'right' && !seen.has(s.itemId) && !!seen.add(s.itemId))
       .map(s => itemsMap.get(s.itemId))
-      .filter(Boolean) as FoodItem[];
-  }, [swipes, itemsMap]);
+      .filter(item => {
+        if (!item) return false;
+        if (vegOnly && !item.isVeg) return false;
+        return true;
+      }) as FoodItem[];
+  }, [swipes, itemsMap, vegOnly]);
 
   const dislikedItems = useMemo(() => {
     const seen = new Set<string>();
     return swipes
       .filter(s => s.direction === 'left' && !seen.has(s.itemId) && !!seen.add(s.itemId))
       .map(s => itemsMap.get(s.itemId))
-      .filter(Boolean) as FoodItem[];
-  }, [swipes, itemsMap]);
+      .filter(item => {
+        if (!item) return false;
+        if (vegOnly && !item.isVeg) return false;
+        return true;
+      }) as FoodItem[];
+  }, [swipes, itemsMap, vegOnly]);
 
   const stats = useMemo(() => ({
     total: swipes.length,

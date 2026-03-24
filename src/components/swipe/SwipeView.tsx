@@ -100,11 +100,25 @@ export default function SwipeView({ onSwipeUpdate }: { onSwipeUpdate: (count: nu
   const { data: allItems = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
   const { data: userSwipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(userSwipesQuery);
 
+  const [vegOnly, setVegOnly] = useState(false);
+
+  useEffect(() => {
+    try {
+      setVegOnly(localStorage.getItem('vegOnlyMode') === 'true');
+    } catch {
+      setVegOnly(false);
+    }
+  }, []);
+
   // Filter out already-swiped items (Firestore + local tracking for instant feedback)
   const items = useMemo(() => {
     const swipedIds = new Set(userSwipes.map(s => s.itemId));
-    return allItems.filter(item => !swipedIds.has(item.id) && !localSwipedIds.has(item.id));
-  }, [allItems, userSwipes, localSwipedIds]);
+    return allItems.filter(item => {
+      if (swipedIds.has(item.id) || localSwipedIds.has(item.id)) return false;
+      if (vegOnly && !item.isVeg) return false;
+      return true;
+    });
+  }, [allItems, userSwipes, localSwipedIds, vegOnly]);
 
   const loading = itemsLoading || swipesLoading;
 
