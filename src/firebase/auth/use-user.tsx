@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
+import { User, onIdTokenChanged, getRedirectResult } from 'firebase/auth';
 import { useAuth } from '../provider';
 
 export function useUser() {
@@ -17,13 +16,24 @@ export function useUser() {
       return;
     }
 
-    // Process the redirect result when returning from Google sign-in
     getRedirectResult(auth).catch(() => {});
 
-    return onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          // Force token to be sent to Firebase servers before allowing queries
+          await firebaseUser.getIdToken(true);
+        } catch {
+          // If token refresh fails, still proceed with existing token
+        }
+        setUser(firebaseUser);
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
+
+    return () => unsubscribe();
   }, [auth]);
 
   return { user, loading };
