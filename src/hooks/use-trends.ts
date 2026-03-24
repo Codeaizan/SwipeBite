@@ -117,33 +117,23 @@ export function useTrends(
     () => (db && user) ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null,
     [db, user],
   );
-  // Swipes queries fetch ALL swipes from all users (no userId filter)
-  // Must wait for user auth to complete (Firestore rules require isSignedIn())
-  // NOTE: Removed orderBy('timestamp') - requires composite index that may not be created.
-  // Just use limit() instead; frontend sorts data as needed.
+  // Fetch ALL swipes from all users (no userId filter)
+  // Removed orderBy('timestamp') - requires composite index that may not exist
+  // Removed fallback query - single simple query is more reliable
   const swipesQuery = useMemo(
-    () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db, user],
-  );
-  // Fallback query - same as primary (no need for separate fallback now)
-  const fallbackSwipesQuery = useMemo(
     () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
     [db, user],
   );
 
   const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
-  const { data: orderedSwipes = [], loading: orderedSwipesLoading, error: orderedSwipesError } = useCollection<SwipeDoc>(swipesQuery);
-  const { data: fallbackSwipes = [] } = useCollection<SwipeDoc>(fallbackSwipesQuery);
-
-  // Use primary query for fetching swipes
-  const swipes = orderedSwipes.length > 0 ? orderedSwipes : fallbackSwipes;
+  const { data: swipes = [], loading: swipesLoading } = useCollection<SwipeDoc>(swipesQuery);
   
   // Debug logging
   if (process.env.NODE_ENV === 'development') {
     console.log('[useTrends] Swipes data:', {
       swipesCount: swipes.length,
       itemsCount: itemsData.length,
-      loading: orderedSwipesLoading,
+      loading: swipesLoading,
     });
   }
 
@@ -159,7 +149,7 @@ export function useTrends(
     return itemsData;
   }, [itemsData]);
 
-  const loading = authLoading || itemsLoading || orderedSwipesLoading;
+  const loading = authLoading || itemsLoading || swipesLoading;
   // Empty-state should reflect actual dataset availability, not local veg filter preference.
   const hasAnyData = itemsData.length > 0 && swipes.length > 0;
 
