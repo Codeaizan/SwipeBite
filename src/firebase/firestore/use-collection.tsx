@@ -10,7 +10,7 @@ export function useCollection<T extends DocumentData = DocumentData>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unsubscribeRef = useRef<(() => void) | null>(null); // ← ref not local var
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const queryRef = useRef(query);
   const hadErrorRef = useRef(false);
@@ -30,7 +30,6 @@ export function useCollection<T extends DocumentData = DocumentData>(
   const stableQuery = queryRef.current;
 
   useEffect(() => {
-    // Always clear pending retry and existing listener on re-run
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -57,10 +56,12 @@ export function useCollection<T extends DocumentData = DocumentData>(
         unsubscribeRef.current = null;
       }
 
-      // Store in ref so cleanup always finds it
       unsubscribeRef.current = onSnapshot(
         stableQuery!,
         (snapshot) => {
+          // ← DEBUG: tells us if onSnapshot fires and how many docs it sees
+          console.log('[useCollection] snapshot fired, total docs:', snapshot.docs.length);
+
           hadErrorRef.current = false;
           const items = snapshot.docs.map((doc) => ({
             ...doc.data(),
@@ -71,7 +72,6 @@ export function useCollection<T extends DocumentData = DocumentData>(
         },
         (err) => {
           if (err.code === 'permission-denied') {
-            // Silently retry — auth token hasn't propagated yet
             hadErrorRef.current = true;
             retryTimeoutRef.current = setTimeout(() => {
               retryTimeoutRef.current = null;
@@ -90,7 +90,6 @@ export function useCollection<T extends DocumentData = DocumentData>(
 
     startListener();
 
-    // Cleanup always catches the listener via ref
     return () => {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
