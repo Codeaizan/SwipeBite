@@ -2,10 +2,9 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
-  getFirestore, 
+  getFirestore,
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager
+  memoryLocalCache
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { firebaseConfig } from './config';
@@ -13,17 +12,15 @@ import { firebaseConfig } from './config';
 export function initializeFirebase() {
   const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-  // Use persistentLocalCache with multi-tab manager
-  // This enables real-time cross-user updates AND works across browser tabs
   let db;
   try {
+    // memoryLocalCache — no IndexedDB persistence
+    // Fetches fresh from Firestore server every session
+    // Prevents stale cached data being served to wrong users
     db = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
+      localCache: memoryLocalCache()
     });
   } catch {
-    // initializeFirestore throws if called twice — fall back to getFirestore
     db = getFirestore(app);
   }
 
