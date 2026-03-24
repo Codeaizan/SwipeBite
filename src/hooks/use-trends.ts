@@ -157,9 +157,19 @@ export function useTrends(
       const itemSwipes = swipes.filter(s => {
         if (s.itemId !== item.id) return false;
         if (!s.timestamp) return true; // optimistic/pending writes
-        const ts = typeof (s.timestamp as any).toMillis === 'function' 
-          ? (s.timestamp as any).toMillis() 
-          : new Date(s.timestamp as any).getTime();
+        
+        let ts = 0;
+        const stamp = s.timestamp as any;
+        if (typeof stamp.toMillis === 'function') {
+          ts = stamp.toMillis();
+        } else if (typeof stamp.seconds === 'number') {
+          ts = stamp.seconds * 1000;
+        } else if (typeof stamp.toDate === 'function') {
+          ts = stamp.toDate().getTime();
+        } else {
+          ts = new Date(stamp).getTime();
+        }
+
         return (now - ts) <= periodMs;
       });
 
