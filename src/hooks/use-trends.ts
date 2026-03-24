@@ -117,14 +117,16 @@ export function useTrends(
     () => (db && user) ? query(collection(db, 'items'), where('isAvailable', '==', true), limit(QUERY_LIMITS.items)) : null,
     [db, user],
   );
+  // Note: Swipes queries do NOT filter by userId - they fetch ALL swipes from all users
+  // Users must be signed in to read due to Firestore rules, but there's no per-user filter
   const swipesQuery = useMemo(
-    () => (db && user) ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db, user],
+    () => db ? query(collection(db, 'swipes'), orderBy('timestamp', 'desc'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    [db],
   );
   // Fallback for legacy datasets where many swipe docs may not have timestamp indexed/populated.
   const fallbackSwipesQuery = useMemo(
-    () => (db && user) ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
-    [db, user],
+    () => db ? query(collection(db, 'swipes'), limit(QUERY_LIMITS.trendingSwipes)) : null,
+    [db],
   );
 
   const { data: itemsData = [], loading: itemsLoading } = useCollection<FoodItem>(itemsQuery);
